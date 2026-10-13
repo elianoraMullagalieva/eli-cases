@@ -1,0 +1,4919 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Roxy Robotics — робот-дворецкий для дома</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  /* Mondwest — фирменный декоративный шрифт для логотипа и "Roxy Robot" */
+  @font-face{
+    font-family: "Mondwest";
+    src: url("fonts/fs-mondwest-regular.woff") format("woff");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+</style>
+<style>
+  :root{
+    --bg: #ffffff;
+    --nav-bg: #ffffff;
+    --ink: #1a1a1a;
+    --ink-strong: #0a0a0a;
+    --ink-mid: #8a8a8a;
+    --ink-low: #c7c7c7;
+    --accent: #5ec2d6;
+    --accent-strong: #2b95aa;
+    --card: rgba(255,255,255,.92);
+    --shadow-card: 0 1px 1px rgba(10,10,10,.04), 0 12px 28px rgba(10,10,10,.10);
+    --shadow-card-hover: 0 1px 2px rgba(10,10,10,.06), 0 28px 44px rgba(10,10,10,.16);
+    --radius-card: 28px;
+    --radius-card-sm: 24px;
+    --ease: cubic-bezier(.22,1,.36,1);
+    --ease-soft: cubic-bezier(.45,.05,.25,1);
+    /* Числовая иерархия карточек:
+       H2 = «128+» и «3 года» (крупные акценты, равны между собой)
+       H3 = «1200» и «2 ч»    (числа в диаграммах, равны между собой) */
+    --h2: 54px;
+    --h3: 40px;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);}
+  body{
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01","cv11","tnum";
+    overflow-x: hidden;
+    min-width: 360px;
+  }
+
+  /* ====== ПОЛНОЭКРАННАЯ СЦЕНА ======
+     hero ВСЕГДА занимает ровно 100vh (на любой высоте окна).
+     Внутренняя сцена 1920×1198 — масштабируется так, чтобы
+     ширина И высота вписывались в окно (object-fit: contain логика).
+     Никакой «пустой полосы» внизу не остаётся. */
+  .stage{
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .stage__scaled{
+    position: absolute;
+    left: 0; top: 0;
+    width: 1920px;
+    height: 1198px;
+    transform-origin: top left;
+    /* масштабирование задаётся в JS (см. resize()) */
+  }
+
+  /* ====== NAV ====== */
+  .nav{
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 80px;
+    background: linear-gradient(to bottom, var(--bg) 60%, rgba(246,248,246,0));
+    z-index: 20;
+  }
+  .nav__brand{
+    position: absolute;
+    left: 53px; top: 14px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .nav__logo{
+    width: 52px; height: 52px; border-radius: 14px;
+    background: var(--ink-strong);
+    display: grid; place-items: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: -0.04em;
+  }
+  .nav__brand-text{
+    display: inline-block;
+  }
+  /* «Roxy Robotics» подобрана по КЕГЛЮ так, чтобы совпасть по ширине
+     с «Engineering company» — без растянутых пробелов (justify). */
+  .nav__brand-text h1{
+    margin: 0;
+    font-family: "Mondwest", "Instrument Serif", Georgia, serif;
+    font-size: 35px;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+    color: #141414;
+    line-height: 1;
+    white-space: nowrap;
+    /* центр буквы R по центру блока: строка чуть опущена */
+    position: relative;
+    top: 2px;
+  }
+  .nav__brand-text small{
+    display:block;
+    color: #666;
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+    /* капельку выше — компенсируем опущенный на 2px заголовок */
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+  .nav__center{
+    position: absolute;
+    left: 50%; top: 30px;
+    transform: translateX(-50%);
+    display: flex; gap: 48px;
+    color: var(--ink);
+    font-size: 16px;
+  }
+  .nav__center a{
+    color: inherit; text-decoration: none;
+    transition: color .3s var(--ease),
+                opacity .5s var(--ease), transform .5s var(--ease), filter .5s var(--ease);
+  }
+  .nav__center a:hover{ color: var(--accent-strong) }
+  /* Скрытие меню при листании — пункты растворяются ВВЕРХ staggered.
+     Логотип и «Связаться» остаются. Тихо, дорого, Apple-стиль. */
+  .nav--collapsed .nav__center{ pointer-events: none; }
+  .nav--collapsed .nav__center a{
+    opacity: 0;
+    transform: translateY(-14px);
+    filter: blur(3px);
+  }
+  .nav--collapsed .nav__center a:nth-child(1){ transition-delay: 0s; }
+  .nav--collapsed .nav__center a:nth-child(2){ transition-delay: .05s; }
+  .nav--collapsed .nav__center a:nth-child(3){ transition-delay: .10s; }
+  .nav--collapsed .nav__center a:nth-child(4){ transition-delay: .15s; }
+  .nav--collapsed .nav__center a:nth-child(5){ transition-delay: .20s; }
+  .nav__cta{
+    position: absolute;
+    right: 53px; top: 17px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .nav__cta-text{ font-size: 16px; color: var(--ink) }
+  .nav__cta-btn{
+    width: 45px; height: 45px;
+    border-radius: 50%;
+    background: var(--ink-strong);
+    color: #fff;
+    display: grid; place-items: center;
+    font-size: 18px;
+    transition: transform .4s var(--ease), background .3s var(--ease);
+    cursor: pointer;
+  }
+  .nav__cta-btn:hover{
+    transform: translateX(2px);
+    background: var(--accent-strong);
+  }
+
+  /* ====== ВИДЕО — ЦЕНТР ======
+     Симметрия по вертикали: над навом 0, под кнопкой 56px.
+     Чтобы сцена казалась "дышащей", даём медиа верх 96px (на 96px от 0)
+     и низ 1198 - 96 = 1102. Высота = 1102 - 96 = 1006.
+     Это даст 96px воздуха сверху (от низа nav на 80) и снизу (под кнопкой на 56).
+  */
+  .hero__media{
+    position: absolute;
+    left: 370px;
+    top: 96px;
+    width: 1212px;
+    bottom: 0;
+    border-radius: 24px 24px 0 0;
+    overflow: hidden;
+    background: #ffffff;
+    z-index: 1;
+  }
+  .hero__canvas{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #ffffff;
+    opacity: 0;
+    transition: opacity .5s var(--ease);
+  }
+  /* object-position эмулируется в JS через dy offset (drawFrame).
+     Нужное значение для «робот пониже» = ~0.24 */
+  .hero__canvas.is-ready{ opacity: 1 }
+  .hero__loader{
+    position: absolute;
+    inset: auto 0 32px 0;
+    display: flex; justify-content: center;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity .4s var(--ease);
+  }
+  .hero__loader.is-done{ opacity: 0 }
+  .hero__loader-bar{
+    width: 220px; height: 1px;
+    background: rgba(10,10,10,.12);
+    border-radius: 1px; overflow: hidden;
+  }
+  .hero__loader-fill{
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .15s linear;
+  }
+  .hero__media::before,
+  .hero__media::after{
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  /* верх — лёгкое растворение в БЕЛЫЙ под заголовок.
+     Нужно ТОЛЬКО на hero (крупный план). Когда начинается морф и робот
+     встаёт в полный рост — фейд гасится (--hero-fade → 0), иначе он
+     подсвечивает белым край над головой. На чистовых кадрах/фото фон
+     уже чистый, смягчать нечего. */
+  .hero__media::before{
+    top: 0;
+    height: 180px;
+    opacity: var(--hero-fade, 1);
+    transition: opacity .3s var(--ease);
+    background: linear-gradient(to bottom,
+      rgba(255,255,255,.70) 0%,
+      rgba(255,255,255,.25) 60%,
+      rgba(255,255,255,0)   100%);
+  }
+  /* НИКАКОГО туман-фейда снизу — Эли сказала «белый свет к низу не то».
+     Видео должно доходить до низа экрана чисто. */
+  .hero__media::after{ display: none; }
+  @keyframes hintIn{ to{ opacity: 1 } }
+
+  /* ====== ТАЙТЛ HERO ====== */
+  .hero__title-wrap{
+    position: absolute;
+    left: 50%;
+    top: 130px;
+    transform: translateX(-50%);
+    width: 1100px;
+    z-index: 12;
+    text-align: center;
+    pointer-events: none;
+  }
+  .hero__model{
+    display: inline-flex; align-items: center; gap: 16px;
+    font-family: "Mondwest", "Instrument Serif", Georgia, serif;
+    /* +5% к размеру (51 → 54) */
+    font-size: 54px;
+    line-height: 1.01;
+    letter-spacing: 0.02em;
+    color: #000;
+    /* отступ до заголовка hero */
+    margin: 0 0 8px;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeUp .9s var(--ease) .15s forwards;
+  }
+  .hero__model .dot{
+    width: 12px !important; height: 12px !important;
+  }
+  .hero__model .dot{
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(94,194,214,.45);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .hero__h1{
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    font-size: 56px;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    font-weight: 400;
+    color: #0a0a0a;
+  }
+  .hero__h1 .line{
+    display: block;
+    min-height: 1.05em;
+    white-space: nowrap;
+  }
+  /* Курсор печатной машинки */
+  .caret{
+    display: inline-block;
+    width: 3px;
+    height: 0.92em;
+    margin-left: 4px;
+    vertical-align: text-bottom;
+    background: var(--accent);
+    animation: caretBlink 1s steps(2, end) infinite;
+    opacity: 0;
+  }
+  .caret.is-on{ opacity: 1 }
+  @keyframes caretBlink{ 50%{ opacity: 0 } }
+  /* Меняющееся слово окрашивается в акцент, чтобы было видно что оно живое */
+  .hero__h1 .swap{
+    color: var(--accent-strong);
+    font-weight: 500;
+  }
+
+  @keyframes fadeUp{ to{ opacity: 1; transform: none } }
+  @keyframes pulse{
+    0%,100%{ transform: scale(1); opacity:.85 }
+    50%{ transform: scale(1.25); opacity: 1 }
+  }
+
+  /* ====== КАРТОЧКИ ====== */
+  .card{
+    position: absolute;
+    background: var(--card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.6);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    z-index: 5;
+    opacity: 0;
+    transform: translateY(24px);
+    animation: cardIn 1s var(--ease) forwards;
+    transition: box-shadow .6s var(--ease);
+  }
+  .card-inner{
+    width: 100%; height: 100%;
+    transition: transform .6s var(--ease);
+    will-change: transform;
+  }
+  .card:hover{ box-shadow: var(--shadow-card-hover) }
+  .card:hover .card-inner{ transform: translateY(-4px) }
+  @keyframes cardIn{ to{ opacity: 1; transform: none } }
+
+  .card__dot{
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.5);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .card__title{
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink-strong);
+    letter-spacing: -0.012em;
+  }
+  .card__arrow{
+    font-size: 16px;
+    color: var(--ink-strong);
+    opacity: .7;
+    transition: transform .4s var(--ease);
+  }
+  .card:hover .card__arrow{ transform: translateX(3px); opacity: 1 }
+
+  /* ====== card AI 96% (большая слева сверху) ====== */
+  .card--ai{
+    left: 53px;
+    top: 444px;
+    width: 286px;
+    /* высота под увеличенное кольцо 250px */
+    height: 372px;
+    animation-delay: .55s;
+  }
+  .card--ai .head-row{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 22px 0 22px;
+  }
+  .card--ai .head-left{
+    display: flex; align-items: center; gap: 10px;
+  }
+  .card--ai .sub{
+    color: var(--ink-mid);
+    font-size: 16px;
+    padding: 6px 22px 0 22px;
+  }
+  .ring-wrap{
+    position: relative;
+    /* кольцо крупнее (250) — уравновешивает увеличенную дугу справа */
+    width: 250px;
+    height: 250px;
+    margin: 34px auto 22px;
+  }
+  .ring-svg{
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    animation: spinSlow 60s linear infinite;
+    transform-origin: 50% 50%;
+  }
+  @keyframes spinSlow{ to{ transform: rotate(360deg) } }
+  .ring-svg circle{
+    fill: var(--accent);
+    opacity: .85;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: dotBreathe 3s ease-in-out infinite;
+  }
+  @keyframes dotBreathe{
+    0%,100%{ transform: scale(.85); opacity:.45 }
+    50%{ transform: scale(1.5); opacity: 1 }
+  }
+  .ring-num{
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font-size: var(--h3);
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .ring-num-stack{
+    text-align: center;
+    line-height: 1;
+  }
+  .ring-num-label{
+    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--ink-mid);
+  }
+
+  /* ====== card 128+ (большая слева снизу) ====== */
+  .card--daily{
+    left: 53px;
+    /* 444 + 372 + 24 = 840 */
+    top: 840px;
+    width: 286px;
+    height: 300px;
+    animation-delay: .7s;
+  }
+  .card--daily .head-row{
+    display: flex; align-items: center;
+    padding: 22px 22px 0 22px;
+    gap: 12px;
+  }
+  .icon-clock{
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 10px rgba(94,194,214,.4);
+  }
+  .icon-clock::before{
+    content:""; position:absolute;
+    left: 50%; top: 50%;
+    width: 1.2px; height: 5px;
+    background: var(--accent);
+    transform-origin: 50% 100%;
+    transform: translate(-50%, -100%) rotate(0deg);
+    animation: clockSpin 8s linear infinite;
+  }
+  @keyframes clockSpin{
+    to{ transform: translate(-50%, -100%) rotate(360deg) }
+  }
+  .card--daily .sub{
+    color: var(--ink-mid);
+    font-size: 16px;
+    padding: 6px 22px 0 22px;
+  }
+  .card--daily .big-num{
+    font-size: var(--h2);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+    /* цифра опущена ещё ниже — карточка не смотрится сжато */
+    padding: 54px 22px 0 22px;
+  }
+  /* теги Cloude/Iphone — внутри карточки 128+, под цифрой */
+  .card--daily .tags{
+    display: flex; gap: 18px;
+    padding: 10px 22px 0;
+    color: #8c8c8c;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+  }
+  .card--daily .tags span{ position: relative }
+  .card--daily .tags span + span::before{
+    content: "·";
+    position: absolute;
+    left: -12px; top: 0;
+    color: #c0c0c0;
+  }
+  .equalizer{
+    position: relative;
+    /* Линии короче по высоте (86) — цифра «128+» опущена ниже,
+       и эквалайзер не перегружает карточку. */
+    height: 86px;
+    width: 222px;
+    margin: 0 auto;
+    position: absolute;
+    left: 32px;
+    bottom: 26px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .b{
+    position: relative;
+    width: 1px;
+    height: 100%;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0;
+    transform: translateY(6px) scaleY(0.4);
+    transform-origin: bottom;
+    animation: barIn 1.2s var(--ease) forwards;
+  }
+  .b__line{
+    width: 1.5px;
+    height: var(--h);
+    transform-origin: bottom;
+    background: linear-gradient(
+      to bottom,
+      rgba(94,194,214,0)    0%,
+      rgba(94,194,214,.12)  18%,
+      rgba(89,171,187,.85)  55%,
+      rgba(43,149,170,.95)  72%,
+      rgba(94,194,214,.20)  92%,
+      rgba(94,194,214,0)   100%
+    );
+    filter: drop-shadow(0 0 .3px rgba(43,149,170,.35));
+    /* Волна задаётся через JS (см. waveLoop в скрипте),
+       чтобы короткие бары росли, а длинные уменьшались по фазе. */
+  }
+  @keyframes barIn{ to{ opacity: 1; transform: none } }
+  .b__spark{
+    position: absolute;
+    left: 50%;
+    bottom: 8%;
+    width: 1.5px;
+    height: 22%;
+    transform: translateX(-50%);
+    background: linear-gradient(to bottom,
+      rgba(180,140,90,0) 0%,
+      rgba(180,140,90,.55) 50%,
+      rgba(180,140,90,0) 100%);
+    opacity: .8;
+  }
+
+  /* ====== ПРАВЫЕ КАРТОЧКИ ======
+     Ширина 286 как у левых. Высоты РАЗНЫЕ (не 240/240) — правая колонка
+     растянута до низа левой (≈1108), чтобы уравновесить левую часть
+     и убрать «сжатость». Заряд ниже (больше места под дугу),
+     Гарантия выше (число + шкала дышат). */
+  .card--mini{
+    width: 286px;
+    border-radius: var(--radius-card-sm);
+  }
+  .card--mini .body{
+    padding: 24px 28px;
+    height: 100%;
+    display: flex; flex-direction: column;
+  }
+  /* Унифицированные шрифты заголовков карточек ВЕЗДЕ — слева и справа одинаково */
+  .card--mini .h-row{
+    display: flex; align-items: center; gap: 10px;
+  }
+  .card--mini .h-row .dot{
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.5);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .card--mini .h-row span{
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink-strong);
+    letter-spacing: -0.012em;
+  }
+  .card--mini .sub-row{
+    color: var(--ink-mid);
+    font-size: 16px;
+    letter-spacing: -0.005em;
+    margin-top: 6px;
+  }
+
+  /* card Заряд (дуга) — left = 1920 - 53 - 286 = 1581 (зеркало левых).
+     Высота 322 (было 240) — карточка вытянута под дугу побольше. */
+  .card--charge{
+    left: 1581px;
+    top: 444px;
+    height: 322px;
+    animation-delay: .85s;
+  }
+  .arc-wrap{
+    position: absolute;
+    width: 250px;
+    height: 128px;
+    /* дуга крупнее (уравновешивает кольцо «1200» слева) и опущена ниже.
+       Центрируется по ВСЕЙ карточке (286): left = (286-250)/2 = 18,
+       не по контенту body — иначе число «2 ч» уходит вбок. */
+    left: 18px;
+    bottom: 28px;
+  }
+  .arc-svg{
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+  .arc-svg circle{
+    fill: var(--accent);
+    animation: arcDot .6s var(--ease) forwards;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes arcDot{
+    from{ opacity: 0; transform: scale(.3) }
+    to{ opacity: 1; transform: scale(1) }
+  }
+  .arc-num{
+    position: absolute;
+    left: 0; right: 0;
+    bottom: -4px;
+    text-align: center;
+    font-size: var(--h3);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* card Гарантия — сдвинута ниже (Заряд стал выше). Чуть уменьшена
+     (height 300, низ = 1090), под ней снизу — подсказка-мышка,
+     чей левый край совпадает с левым краем карточки. */
+  .card--warranty{
+    left: 1581px;
+    top: 790px;
+    height: 300px;
+    animation-delay: 1s;
+  }
+  .card--warranty .big-num{
+    font-size: var(--h2);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+    /* «3 года» опущено ниже, ближе к своей шкале-таймлайну */
+    margin-top: auto;
+  }
+  .timeline{
+    position: relative;
+    width: 230px;   /* шире, чтобы вписалось красиво в карточку 286 */
+    margin: 28px auto 0;
+    height: 7px;
+  }
+  .timeline__bg{
+    position: absolute; left: 0; right: 0; top: 3px;
+    height: 1px;
+    background: rgba(10,10,10,.12);
+  }
+  .timeline__active{
+    position: absolute; left: 0; top: 2.5px;
+    height: 1.5px;
+    width: 0;
+    background: var(--accent);
+    transform-origin: left;
+    /* Сначала растёт за 1.4s до 100% (с задержкой 1.3s от загрузки),
+       потом цикл: 3.5s рост → 0.8s пауза → сброс → снова. */
+    animation:
+      tlGrow 1.4s var(--ease) 1.3s 1 forwards,
+      tlLoop 4.3s var(--ease-soft) 2.7s infinite;
+  }
+  @keyframes tlGrow{ to{ width: 100% } }
+  @keyframes tlLoop{
+    0%   { width: 100% }
+    20%  { width: 100% }   /* пауза на полной */
+    20.1%{ width: 0% }     /* мгновенный сброс */
+    100% { width: 100% }   /* плавный рост обратно */
+  }
+  .timeline__tick{
+    position: absolute;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    top: 1px;
+    opacity: 0;
+    animation: tickIn .5s var(--ease) forwards;
+  }
+  .timeline__tick.t0{ left: 0; background: var(--ink-strong); animation-delay: 1.4s }
+  .timeline__tick.t1{ left: 33%; background: var(--accent); animation-delay: 1.55s }
+  .timeline__tick.t2{ left: 66%; background: var(--accent); animation-delay: 1.7s }
+  .timeline__tick.t3{ left: calc(100% - 7px); background: var(--accent); width: 7px; height: 7px; top: 0; animation-delay: 1.85s }
+  @keyframes tickIn{
+    from{ opacity: 0; transform: scale(.2) }
+    to{ opacity: 1; transform: scale(1) }
+  }
+
+  /* ====== КНОПКА «Смотреть видео» — pill + play-морф ======
+     Стеклянная капсула по центру сцены. Внутри: круг-play (слева),
+     подпись, стрелка (появляется на hover). transform-origin центр. */
+  .btn-secondary{
+    position: absolute;
+    /* центр сцены 1920/2 = 960, минус половина ширины */
+    left: 810px;
+    top: 1090px;
+    width: 300px;
+    height: 66px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 0 30px;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1.3px solid rgba(199,199,199,.7);
+    border-radius: 100px;
+    font-size: 20px;
+    color: var(--ink);
+    cursor: pointer;
+    z-index: 30;
+    opacity: 0;
+    box-shadow: 0 1px 1px rgba(10,10,10,.03), 0 10px 26px rgba(10,10,10,.07);
+    animation: fadeUp 1s var(--ease) 1.4s forwards;
+    transition: border-color .4s var(--ease), box-shadow .5s var(--ease), transform .4s var(--ease);
+  }
+  .btn-secondary:hover{
+    transform: translateY(-2px);
+    border-color: rgba(94,194,214,.55);
+    box-shadow: 0 2px 3px rgba(10,10,10,.05), 0 18px 40px rgba(43,149,170,.14);
+  }
+  /* Круг-play слева: контур → на hover заливается акцентом */
+  .btn-play{
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: var(--ink-strong);
+    border: 1.5px solid rgba(10,10,10,.18);
+    background: transparent;
+    transition: background .45s var(--ease), border-color .45s var(--ease), color .45s var(--ease), transform .45s var(--ease);
+  }
+  /* треугольник оптически центрирован в круге — сдвинут правее */
+  .btn-play svg{ transform: translateX(1.5px); }
+  .btn-secondary:hover .btn-play{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+    transform: scale(1.06);
+  }
+  .btn-label{
+    flex-shrink: 0;
+    letter-spacing: -0.01em;
+  }
+  /* Мышка ЛЁЖАЧАЯ + текст, под карточкой Гарантия (в координатах сцены).
+     Левый край подсказки = левый край карточки (1581px), стоит под
+     карточкой (низ карточки 1090 + зазор). Овал слева, текст справа. */
+  .below-warranty-hint{
+    position: absolute;
+    left: 1581px;
+    top: 1112px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    z-index: 5;
+    opacity: 0;
+    animation: fadeUp 1s var(--ease) 2.4s forwards;
+    pointer-events: none;
+  }
+  /* Овал лежит горизонтально (ширина больше высоты) */
+  .mouse-hint{
+    width: 38px; height: 24px;
+    border: 1.5px solid rgba(10,10,10,.45);
+    border-radius: 14px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  /* Точка-«колёсико» внутри овала, бегает слева-направо (горизонтально) */
+  .mouse-hint::after{
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 7px;
+    width: 7px; height: 3px;
+    margin-top: -1.5px;
+    border-radius: 2px;
+    background: var(--accent);
+    animation: mouseWheelH 1.6s cubic-bezier(.45,.05,.25,1) infinite;
+  }
+  @keyframes mouseWheelH{
+    0%   { transform: translateX(0);   opacity: 1 }
+    70%  { transform: translateX(14px); opacity: 0 }
+    71%  { transform: translateX(0);   opacity: 0 }
+    100% { transform: translateX(0);   opacity: 1 }
+  }
+  .mouse-hint-label{
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: rgba(10,10,10,.45);
+    text-transform: uppercase;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* ====== MORPH: HERO → BLOCK 2 ======
+     Контейнер высотой 250vh, внутри — sticky .stage (100vh).
+     Скролл управляет прогрессом морфа 0..1. Голова с canvas
+     плавно уменьшается и «садится» на голову PNG во весь рост. */
+  .morph-container{
+    position: relative;
+    height: 360vh;   /* морф + блок + кинопереход (без лишней паузы) */
+    background: var(--bg);
+  }
+  .morph-container .stage{
+    position: sticky;
+    top: 0;
+  }
+  /* ── КИНОПЕРЕХОД «Скорость → Забота» ──
+     Overlay поверх sticky-сцены: чёрная штора гасит блок, затем на ТОМ ЖЕ
+     месте кроссфейдом проявляется видео. Без «долистывания вниз». */
+  .morph-cut{
+    position: absolute; inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0;                 /* включается только в зоне перехода */
+    background: #000;
+    /* --cut-dark: 0..1 плотность шторы; --cut-vid: 0..1 проявление видео */
+  }
+  .morph-cut__video{
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center;
+    opacity: 0;
+  }
+  /* Микроэмоция: короткая световая вспышка на стыке штора→видео */
+  .morph-cut__flash{
+    position: absolute; inset: 0; pointer-events: none;
+    opacity: 0; z-index: 3;
+    background: radial-gradient(120% 90% at 50% 46%, #fff 0%, rgba(255,255,255,.35) 34%, rgba(255,255,255,0) 70%);
+    mix-blend-mode: screen;
+  }
+  .morph-cut__grade{
+    position: absolute; inset: 0; pointer-events: none;
+    opacity: 0;
+    background:
+      linear-gradient(to bottom, rgba(10,10,10,.5) 0%, rgba(10,10,10,0) 28%),
+      linear-gradient(to top, rgba(10,10,10,.6) 0%, rgba(10,10,10,0) 34%),
+      radial-gradient(130% 90% at 50% 50%, rgba(10,10,10,0) 52%, rgba(10,10,10,.45) 100%);
+  }
+  .morph-cut__label{
+    position: absolute; left: 6vw; bottom: 13vh;
+    z-index: 2; color: #fff;
+    opacity: 0; transform: translateY(16px);
+  }
+  .morph-cut__eyebrow{
+    margin: 0 0 16px;
+  }
+  .morph-cut__title{
+    margin: 0; font-weight: 400;
+    font-size: clamp(40px, 4.4vw, 78px); line-height: 1.0;
+    letter-spacing: -0.045em; color: #fff; text-wrap: balance;
+  }
+  /* Подзаголовок и стек уведомлений — вторая волна проявления перехода.
+     Управляются отдельным прогрессом (--cut-sub) из applyCut. */
+  .morph-cut__sub{
+    margin: 22px 0 0; max-width: 30em;
+    font-size: clamp(16px, 1.15vw, 19px); line-height: 1.5;
+    color: rgba(255,255,255,.82);
+    opacity: 0; transform: translateY(14px);
+  }
+  .morph-cut__notifs{
+    margin-top: 26px; display: flex; flex-direction: column; gap: 12px;
+    max-width: 380px;
+  }
+  .morph-cut__notifs .notif{
+    opacity: 0; transform: translateY(16px) scale(.98);
+    transition: opacity .5s var(--ease), transform .5s var(--ease);
+  }
+  .morph-cut__notifs .notif.is-on{ opacity: 1; transform: none; }
+  .morph-container .stage__scaled{
+    transition: none;
+    will-change: transform;
+  }
+  /* Всё содержимое сцены КРОМЕ canvas и nav — гасим одним классом.
+     ВАЖНО: у карточек своя entrance-анимация с fill:forwards, которая
+     держит opacity:1. Поэтому здесь opacity через !important + снимаем
+     их анимацию, иначе старые карточки НЕ исчезают при морфе (баг наезда). */
+  .stage__scaled.is-fading > *:not(.hero__media):not(.nav){
+    opacity: var(--content-opacity, 1) !important;
+    animation: none !important;
+    transition: opacity .35s var(--ease) !important;
+  }
+  /* nav не гасим целиком — им управляет отдельная логика (nav--collapsed) */
+
+  /* ====== OVERLAY БЛОКА 2 — тексты и карточки поверх robot-canvas ======
+     Слой в координатах сцены 1920×1198 (масштаб как у hero через resize).
+     Робот на canvas в центре — единственный. Карточки по бокам,
+     заголовок слева. Всё появляется по прогрессу отъезда (--b2-*). */
+  .b2-overlay{
+    position: absolute;
+    left: 0; top: 0;
+    width: 1920px;
+    height: 1198px;
+    transform-origin: top left;
+    z-index: 6;
+    pointer-events: none;
+  }
+  .b2-overlay [data-b2],
+  .b2-overlay [data-b2card]{ pointer-events: auto; }
+
+  .b2-eyebrow{
+    position: absolute;
+    left: 72px; top: 150px;
+    margin: 0;
+    opacity: var(--b2-title-op, 0);
+    transform: translateY(calc((1 - var(--b2-title-op, 0)) * 16px));
+  }
+  /* ЕДИНЫЙ стиль подзаголовочных меток «02 · Скорость» —
+     тонкая капсула-обводка без заливки, приглушённый ink (НЕ голубой),
+     компактный трекинг. Отрицательный left-margin выравнивает ТЕКСТ
+     метки по левому краю заголовка, а не край капсулы. */
+  .eyebrow-chip{
+    display: inline-flex; align-items: center;
+    margin-left: -15px;                 /* компенсация padding капсулы */
+    padding: 7px 15px 6px;
+    border: 1px solid rgba(10,10,10,.14);
+    border-radius: 100px;
+    font-weight: 500; font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    background: none;
+    white-space: nowrap;
+  }
+  /* маленькая точка-акцент перед номером — микродизайнерский элемент */
+  .eyebrow-chip::before{
+    content: ""; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent); margin-right: 9px; flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(94,194,214,.5);
+  }
+  /* Та же капсула, но поверх тёмного видео — светлая обводка/ink */
+  .eyebrow-chip--onvideo{
+    border-color: rgba(255,255,255,.34);
+    color: rgba(255,255,255,.86);
+  }
+  .b2-title{
+    position: absolute;
+    left: 72px; top: 190px;
+    width: 560px;
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    font-weight: 400;
+    font-size: 66px;
+    line-height: .98;
+    letter-spacing: -0.04em;
+    color: #0a0a0a;
+  }
+  .b2-line{ display: block; overflow: hidden; padding-bottom: 0.04em; }
+  .b2-inner{
+    display: block;
+    transform: translateY(calc((1 - var(--b2-title-op, 0)) * 108%));
+    will-change: transform;
+  }
+  .b2-sub{
+    position: absolute;
+    left: 72px; top: 410px;
+    width: 430px;
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.4;
+    letter-spacing: -0.02em;
+    color: #666;
+    opacity: var(--b2-sub-op, 0);
+    transform: translateY(calc((1 - var(--b2-sub-op, 0)) * 20px));
+  }
+  .b2-cta{
+    position: absolute;
+    left: 72px; top: 900px;
+    height: 66px;
+    padding: 0 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--ink-strong);
+    color: #fff;
+    border: none;
+    border-radius: 100px;
+    font-family: "Inter", sans-serif;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: var(--b2-cta-op, 0);
+    transform: translateY(calc((1 - var(--b2-cta-op, 0)) * 20px));
+    transition: background .3s var(--ease);
+    will-change: transform, opacity;
+  }
+  .b2-cta:hover{ background: var(--accent-strong); }
+  .b2-cta__arrow{ transition: transform .35s var(--ease); }
+  .b2-cta:hover .b2-cta__arrow{ transform: translateX(4px); }
+
+  /* ====== КАРТОЧКИ-ФАКТЫ СКОРОСТИ (стиль блока 1) ====== */
+  .b2card{
+    position: absolute;
+    background: var(--card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.6);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 22px 24px;
+    opacity: var(--b2-card-op, 0);
+    transform: translateY(calc((1 - var(--b2-card-op, 0)) * 40px))
+               scale(calc(0.94 + var(--b2-card-op, 0) * 0.06));
+    transition: box-shadow .6s var(--ease);
+    will-change: transform, opacity;
+  }
+  .b2card:hover{ box-shadow: var(--shadow-card-hover); }
+  .b2card__head{ display: flex; align-items: center; gap: 10px; }
+  .b2card__dot{
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.5);
+    animation: pulse 3s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .b2card__title{
+    font-size: 20px; font-weight: 500;
+    letter-spacing: -0.012em; color: var(--ink-strong);
+  }
+  .b2card__arrow{
+    margin-left: auto; font-size: 16px; color: var(--ink-strong);
+    opacity: .7; transition: transform .4s var(--ease);
+  }
+  .b2card:hover .b2card__arrow{ transform: translateX(3px); opacity: 1; }
+  .b2card__sub{
+    margin-top: 6px;
+    font-size: 16px; color: var(--ink-mid);
+    letter-spacing: -0.005em;
+  }
+  .b2card__bignum{
+    font-size: var(--h2);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+    margin-top: 14px;
+  }
+  .b2card__unit{
+    font-size: 22px; font-weight: 500; color: var(--ink-mid);
+    letter-spacing: -0.02em;
+  }
+
+  /* Карточка 1: Уборка кухни (кольцо-таймер) */
+  .b2card--kitchen{ left: 53px; top: 300px; width: 300px; height: 400px; }
+  .b2card__ring{ position: relative; width: 220px; height: 220px; margin: 24px auto 0; }
+  .b2ring-svg{ position: absolute; inset: 0; width: 100%; height: 100%; }
+  .b2ring-svg circle{
+    fill: var(--accent); transform-box: fill-box; transform-origin: center;
+    animation: dotBreathe 3s ease-in-out infinite;
+  }
+  .b2card__ringnum{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
+  }
+  .b2card__ringnum .b2num{
+    font-size: var(--h3); font-weight: 500;
+    letter-spacing: -0.025em; color: var(--ink-strong);
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .b2card__ringnum .b2card__unit{ font-size: 16px; }
+
+  /* Карточка 2: Множитель ×5 (две шкалы) */
+  /* «Ваше время» — единственная слева, между подписью и кнопкой */
+  .b2card--mult{ left: 72px; top: 512px; width: 340px; height: 330px; }
+
+  /* Переключатель вариантов A/B/C — компактные пилюли справа в шапке */
+  .b2card__switch{ margin-left: auto; display: inline-flex; gap: 4px; }
+  .b2sw{
+    width: 24px; height: 24px; border-radius: 8px;
+    border: 1px solid rgba(10,10,10,.12); background: none;
+    font: 600 12px/1 var(--font, inherit); color: var(--ink-mid);
+    cursor: pointer; transition: all .25s var(--ease);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .b2sw:hover{ border-color: rgba(10,10,10,.28); color: var(--ink-strong); }
+  .b2sw.is-on{
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 4px 12px rgba(94,194,214,.35);
+  }
+  /* Тело варианта: показывается только активный, с мягким кросс-фейдом */
+  .b2var{
+    position: absolute; left: 24px; right: 24px; top: 78px; bottom: 24px;
+    opacity: 0; pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  .b2var.is-on{ opacity: 1; pointer-events: auto; transform: none; }
+  .b2var .b2card__sub{ position: static; margin: 0; }
+  .b2var .b2card__bignum{ position: static; margin-top: 10px; }
+  .b2var--a .b2bars{ position: absolute; left: 0; right: 0; bottom: 0; }
+
+  /* Вариант B: две шкалы времени Roxy / Человек */
+  .b2clock{ margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .b2clock__row{ display: grid; grid-template-columns: 62px 1fr 30px; align-items: center; gap: 10px; }
+  .b2clock__who{ font-size: 12px; color: var(--ink-mid); font-weight: 500; }
+  .b2clock__bar{ position: relative; height: 10px; border-radius: 5px; background: rgba(10,10,10,.06); overflow: hidden; }
+  .b2clock__bar i{
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px;
+    transition: width 1s var(--ease);
+  }
+  .b2var--b.is-on .b2clock__bar i{ width: var(--w); }
+  .b2clock__bar--roxy i{ background: linear-gradient(90deg, var(--accent), var(--accent-strong)); }
+  .b2clock__bar--human i{ background: rgba(10,10,10,.2); }
+  .b2clock__val{ font-size: 12px; color: var(--ink-strong); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .b2clock__cap{ margin-top: 16px; font-size: 12px; color: var(--ink-soft, #9a9a9a); }
+
+  /* Вариант C: сетка из 21 деления — освобождённые часы недели */
+  .b2week{ margin-top: 16px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .b2week span{
+    height: 12px; border-radius: 3px; background: rgba(10,10,10,.08);
+    transition: background .5s var(--ease), transform .5s var(--ease);
+  }
+  .b2week span.on{ background: linear-gradient(180deg, var(--accent), var(--accent-strong)); }
+  .b2bars{
+    position: absolute; left: 24px; right: 24px; bottom: 24px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .b2bar{
+    position: relative; height: 12px; border-radius: 6px;
+    background: rgba(10,10,10,.06); overflow: hidden;
+  }
+  .b2bar__fill{
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+    width: 0;
+    transition: width 1.2s var(--ease);
+  }
+  .b2bar__fill.is-vac{ background: rgba(10,10,10,.16); }
+  .b2bar__lbl{
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: #fff; font-weight: 600; letter-spacing: .02em;
+  }
+  .b2bar__lbl.is-dark{ color: var(--ink-mid); }
+
+  /* Карточка 3: Реакция 0,3 с (осциллограф) */
+  .b2card--react{ left: 1567px; top: 190px; width: 300px; height: 250px; }
+  .b2wave{ position: absolute; left: 24px; right: 24px; bottom: 20px; height: 70px; }
+  .b2wave svg{ width: 100%; height: 100%; overflow: visible; }
+  #b2WavePath{ filter: drop-shadow(0 0 3px rgba(94,194,214,.4)); }
+
+  /* Карточка 4: Быстрее пылесоса ×3,7 (гонка) */
+  .b2card--race{ left: 1567px; top: 520px; width: 300px; height: 380px; }
+  .b2race{
+    position: absolute; left: 28px; right: 28px; bottom: 40px;
+    display: flex; flex-direction: column; gap: 46px;
+  }
+  .b2race__track{ position: relative; height: 2px; background: rgba(10,10,10,.1); }
+  .b2race__label{
+    position: absolute; left: 0; top: -22px;
+    font-size: 13px; color: var(--ink-mid); font-weight: 500;
+  }
+  .b2race__dot{
+    position: absolute; top: 50%; left: 0;
+    width: 12px; height: 12px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .b2race__dot--roxy{
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(94,194,214,.6);
+    animation: raceRoxy 3.2s var(--ease-soft) infinite;
+  }
+  .b2race__dot--vac{
+    background: #b8b8b8;
+    animation: raceVac 3.2s var(--ease-soft) infinite;
+  }
+  @keyframes raceRoxy{ 0%{ left: 0 } 62%,100%{ left: 100% } }
+  @keyframes raceVac{ 0%{ left: 0 } 62%{ left: 27% } 100%{ left: 45% } }
+
+  /* ═══════════ ВИДЕО-ДЕМО (одно видео, full-screen, sticky-сцена) ═══════════
+     Обёртка выше экрана; видео sticky-прилипает и держится весь блок.
+     Появляется МГНОВЕННЫМ кроссфейдом (opacity), НЕ выезжает снизу —
+     «уходим с блока, в секунду включается видео». Никакой белой кромки. */
+  .vidwrap{
+    position: relative;
+    width: 100vw;
+    background: #0a0a0a;   /* тёмный фон — стыки сцен чистые, без белого */
+  }
+  /* Сцены в ОБЫЧНОМ потоке — никаких sticky-наложений и параллакса.
+     Сцена «включается» (fade через чёрный), при уходе — «выключается». */
+  .vid{
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a0a;
+    opacity: 0;
+    transition: opacity .45s var(--ease);
+  }
+  .vid.is-inview{ opacity: 1; }
+  .vid__media{
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  /* Грейд: затемнение слева и снизу под текст + кинематографичная вигнетка. */
+  .vid__grade{
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(to right, rgba(10,10,10,.78) 0%, rgba(10,10,10,.34) 32%, rgba(10,10,10,0) 58%),
+      linear-gradient(to top, rgba(10,10,10,.55) 0%, rgba(10,10,10,0) 40%),
+      radial-gradient(120% 80% at 50% 50%, rgba(10,10,10,0) 55%, rgba(10,10,10,.5) 100%);
+  }
+
+  .vid__inner{
+    position: absolute;
+    left: 8vw; top: 44%;
+    transform: translateY(-50%);
+    max-width: 42vw;
+    z-index: 3;
+    color: #fff;
+  }
+  .vid__eyebrow{
+    margin: 0 0 20px;
+  }
+  .vid__title{
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    font-weight: 400;
+    /* размер = .sec-title: заголовки ОДИНАКОВЫЕ по всему сайту */
+    font-size: clamp(38px, 3.4vw, 58px);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    color: #fff;
+  }
+  .vl{ display: block; overflow: hidden; padding-bottom: 0.05em; }
+  .vi{
+    display: block;
+    transform: translateY(110%);
+    transition: transform .9s var(--ease);
+    will-change: transform;
+  }
+  .vid.is-inview .vi{ transform: translateY(0); }
+  .vid.is-inview .vl:nth-child(2) .vi{ transition-delay: .08s; }
+  /* общий reveal для эйбрау/подписи/чипа/статистики */
+  [data-reveal]{
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity .8s var(--ease), transform .8s var(--ease);
+  }
+  .vid.is-inview [data-reveal]{ opacity: 1; transform: none; }
+  .vid.is-inview .vid__sub[data-reveal]{ transition-delay: .22s; }
+  .vid.is-inview .vid__chip[data-reveal]{ transition-delay: .40s; }
+  .vid.is-inview .vid__stat[data-reveal]{ transition-delay: .30s; }
+
+  .vid__sub{
+    margin: 22px 0 0;
+    font-size: clamp(17px, 1.4vw, 21px);
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+    color: rgba(255,255,255,.72);
+    /* компактно: строки ровные, без «одна длинная — одна короткая» */
+    max-width: 430px;
+  }
+  /* правый вариант сцены: текст справа (робот в кадре слева) */
+  .vid__inner--right{
+    left: auto; right: 8vw;
+    text-align: right;
+  }
+  .vid--fridge .vid__grade{
+    background:
+      linear-gradient(to left, rgba(10,10,10,.78) 0%, rgba(10,10,10,.34) 32%, rgba(10,10,10,0) 58%),
+      linear-gradient(to top, rgba(10,10,10,.55) 0%, rgba(10,10,10,0) 40%),
+      radial-gradient(120% 80% at 50% 50%, rgba(10,10,10,0) 55%, rgba(10,10,10,.5) 100%);
+  }
+  .vid__inner--right .vid__sub{ margin-left: auto; }
+
+  /* ═══ Уведомления в стиле iOS (вместо галочек и чек-листов) ═══
+     Плашка как баннер на iPhone: иконка-аппка, имя, текст, время. */
+  .notif-stack{
+    margin-top: 34px;
+    display: flex; flex-direction: column; gap: 14px;
+    width: min(400px, 100%);
+  }
+  .vid__inner--right .notif-stack{ margin-left: auto; }
+  .notif{
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 15px 18px 16px 15px;
+    border-radius: 24px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(28px) saturate(1.6);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    box-shadow: 0 14px 40px rgba(0,0,0,.30);
+    text-align: left;
+    opacity: 0;
+    transform: translateY(18px) scale(.97);
+    transition: opacity .7s var(--ease), transform .7s var(--ease);
+  }
+  .notif.is-on{ opacity: 1; transform: none; }
+  .notif__icon{
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: #0a0a0a;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-family: "Mondwest", Georgia, serif;
+    font-size: 21px;
+    color: #fff;
+  }
+  .notif__body{ flex: 1; min-width: 0; }
+  .notif__row{
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .notif__app{
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,.55);
+  }
+  .notif__time{
+    margin-left: auto;
+    font-size: 13px;
+    color: rgba(255,255,255,.45);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .notif__title{
+    margin-top: 3px;
+    font-size: 15.5px; font-weight: 500;
+    letter-spacing: -0.01em;
+    color: #fff;
+  }
+  .notif__text{
+    margin-top: 2px;
+    font-size: 14.5px;
+    line-height: 1.4;
+    color: rgba(255,255,255,.75);
+  }
+  /* Чип-уведомление «Доставка принята · 18:42» */
+  .vid__chip{
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-top: 30px;
+    padding: 12px 18px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.16);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 100px;
+    font-size: 15px; color: #fff;
+  }
+  .vid__chip-dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.7);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .vid__chip-time{ color: rgba(255,255,255,.5); }
+
+  /* Чек-листы и галочки удалены — их роль играют iOS-уведомления (.notif) */
+
+  /* ═══════════════════════════════════════════════════════════════
+     НОВЫЕ СЕКЦИИ v5: 04 Тишина · 05 Возможности · 06 Спецификации ·
+     07 Отзывы · 08 Предзаказ · Footer
+     Общий язык: те же карточки-стекло, тот же акцент, те же easing.
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* --- общий reveal по скроллу для новых секций --- */
+  [data-sr]{
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 1s var(--ease), transform 1s var(--ease);
+  }
+  [data-sr].is-sr{ opacity: 1; transform: none; }
+  [data-sr="2"].is-sr{ transition-delay: .12s }
+  [data-sr="3"].is-sr{ transition-delay: .24s }
+  [data-sr="4"].is-sr{ transition-delay: .36s }
+
+  .sec-eyebrow{
+    margin: 0 0 22px;
+    font-weight: 500; font-size: 15px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent-strong);
+  }
+  /* Глобально: параграфы и подписи не оставляют висячих предлогов/слов.
+     pretty балансирует последние строки (Chrome/Safari TP), balance — заголовки. */
+  p, .bcell__sub, .office__addr, .vitem__q, .vfocus__q,
+  .lbl small, .sec-sub, .foot__brand p{ text-wrap: pretty; }
+  h1, h2, h3, .sec-title, .vfocus__q{ text-wrap: balance; }
+  /* ЕДИНЫЙ размер заголовков секций по всему сайту (= масштаб hero).
+     Никаких серифов и курсивов — только Inter, акцент задаётся цветом. */
+  .sec-title{
+    margin: 0;
+    font-weight: 400;
+    font-size: clamp(38px, 3.4vw, 58px);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    color: var(--ink-strong);
+    text-wrap: balance;   /* ровные строки заголовка, без висячих слов */
+  }
+  .sec-title em{
+    font-family: inherit;
+    font-style: normal;
+    color: var(--accent-strong);
+  }
+  .sec-sub{
+    margin: 24px 0 0;
+    font-size: clamp(17px, 1.4vw, 21px);
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    color: #666;
+    max-width: 560px;
+    text-wrap: pretty;   /* не оставляет висячих предлогов в конце строк */
+  }
+
+  /* ====== 04 · ТИШИНА — тёмный editorial со спальней ====== */
+  .calm{
+    position: relative;
+    width: 100vw;
+    min-height: 100vh;
+    overflow: hidden;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+  }
+  .calm__img{
+    position: absolute;
+    inset: -8% 0;
+    width: 100%;
+    height: 116%;
+    object-fit: cover;
+    object-position: center 30%;
+    will-change: transform;
+  }
+  .calm__grade{
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(to right, rgba(10,10,10,.78) 0%, rgba(10,10,10,.35) 38%, rgba(10,10,10,0) 62%),
+      linear-gradient(to bottom, rgba(10,10,10,.6) 0%, rgba(10,10,10,0) 24%),
+      linear-gradient(to top, rgba(10,10,10,.7) 0%, rgba(10,10,10,0) 32%);
+  }
+  .calm__inner{
+    position: relative;
+    z-index: 2;
+    padding: 12vh 0 12vh 7vw;
+    max-width: calc(7vw + 620px);
+    color: #fff;
+  }
+  /* Стеклянная панель-отчёт: тонкий хайрлайн, blur, техно-метки.
+     Контент на тёмном фоне живёт в плашке — дороже и собраннее. */
+  .calm__panel{
+    padding: 40px 46px 42px;
+    border-radius: 28px;
+    background: rgba(10,10,10,.42);
+    border: 1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    box-shadow: 0 30px 80px rgba(0,0,0,.35);
+  }
+  .calm__meta{
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid rgba(255,255,255,.09);
+    font-size: 13px;
+    color: rgba(255,255,255,.45);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .calm__meta .live{
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .calm__meta .live i{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(94,194,214,.7);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .calm__inner .sec-title{ color: #fff; font-size: clamp(34px, 2.9vw, 50px); }
+  .calm__inner .sec-sub{ color: rgba(255,255,255,.68); font-size: 17px; margin-top: 18px; }
+  /* децибелы: число + тихие бары */
+  .calm__db{
+    display: flex; align-items: flex-end; gap: 22px;
+    margin-top: 56px;
+  }
+  .calm__db-num{
+    font-size: clamp(54px, 5vw, 84px);
+    font-weight: 500; letter-spacing: -0.04em;
+    line-height: .9;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .calm__db-unit{ font-size: 22px; color: rgba(255,255,255,.55); font-weight: 400; letter-spacing: -0.01em; }
+  .calm__db-bars{
+    display: flex; align-items: flex-end; gap: 5px;
+    height: 44px; padding-bottom: 6px;
+  }
+  .calm__db-bars i{
+    display: block; width: 2px; border-radius: 1px;
+    background: var(--accent);
+    height: calc(var(--bh) * 1%);
+    opacity: .85;
+    animation: calmBar 2.8s ease-in-out infinite;
+    animation-delay: var(--bd);
+    transform-origin: bottom;
+  }
+  @keyframes calmBar{
+    0%,100%{ transform: scaleY(.55); opacity:.4 }
+    50%{ transform: scaleY(1); opacity: .95 }
+  }
+  .calm__db-lbl{
+    margin-top: 14px;
+    font-size: 15px; color: rgba(255,255,255,.5);
+    letter-spacing: -0.005em;
+  }
+  .calm__compare{
+    margin-top: 40px;
+    display: flex; flex-direction: column; gap: 14px;
+    max-width: 380px;
+  }
+  .calm__row{ display: grid; grid-template-columns: 118px 1fr 46px; align-items: center; gap: 14px; font-size: 14px; color: rgba(255,255,255,.6); }
+  .calm__row .tr{ position: relative; height: 2px; background: rgba(255,255,255,.14); border-radius: 1px; overflow: hidden; }
+  .calm__row .tr i{
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 0; border-radius: 1px;
+    background: rgba(255,255,255,.45);
+    transition: width 1.4s var(--ease) .3s;
+  }
+  .calm__row.is-roxy{ color: #fff; }
+  .calm__row.is-roxy .tr i{ background: var(--accent); }
+  .calm.is-sr-zone .calm__row .tr i{ width: calc(var(--w) * 1%); }
+  .calm__row .db{ font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* ====== 05 · ВОЗМОЖНОСТИ — bento ====== */
+  .bento{
+    position: relative;
+    background: var(--bg);
+    padding: 15vh 0 12vh;
+  }
+  /* НОВАЯ композиция: двухколоночная — sticky-заголовок слева, bento справа */
+  .bento__layout{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 56px;
+    align-items: start;
+  }
+  .bento__head{
+    position: sticky;
+    top: 15vh;
+    align-self: start;
+  }
+  .bento__head .sec-sub{ margin-top: 22px; max-width: 300px; }
+  /* мини-«пульт» под заголовком — намёк на приложение */
+  .bento__pilot{
+    margin-top: 40px;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.9);
+    border: 1px solid rgba(10,10,10,.06);
+    box-shadow: var(--shadow-card);
+  }
+  .bento__pilot-top{
+    display: flex; align-items: center; gap: 9px;
+    font-size: 13px; font-weight: 500; color: var(--ink-strong);
+  }
+  .bento__pilot-top .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 10px rgba(94,194,214,.6);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .bento__pilot-top .st{ margin-left: auto; font-size: 12px; color: var(--ink-mid); font-weight: 400; }
+  .bento__pilot-rooms{ display: flex; gap: 6px; margin-top: 14px; }
+  .bento__pilot-room{
+    flex: 1; text-align: center;
+    padding: 8px 0; border-radius: 10px;
+    font-size: 12px; color: var(--ink-mid);
+    background: rgba(10,10,10,.035);
+    transition: background .4s var(--ease), color .4s var(--ease);
+  }
+  .bento__pilot-room.is-on{ background: rgba(94,194,214,.14); color: var(--accent-strong); font-weight: 500; }
+
+  .bento__grid{
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: 92px;
+    grid-auto-flow: dense;
+    gap: 18px;
+  }
+  .bcell{
+    position: relative;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(10,10,10,.06);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow .6s var(--ease), transform .6s var(--ease);
+  }
+  .bcell:hover{ box-shadow: var(--shadow-card-hover); transform: translateY(-4px); }
+  .bcell--photo{ border: none; }
+  .bcell--photo img{
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scale(1.02);
+    transition: transform 1.6s var(--ease);
+  }
+  .bcell--photo:hover img{ transform: scale(1.07); }
+  .bcell__chip{
+    position: absolute; left: 22px; bottom: 22px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 11px 18px;
+    background: rgba(10,10,10,.45);
+    border: 1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 100px;
+    font-size: 15px; color: #fff;
+    z-index: 2;
+  }
+  .bcell__chip .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.7);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .bcell__pad{
+    position: relative;
+    height: 100%;
+    padding: 26px 28px;
+    display: flex; flex-direction: column;
+  }
+  .bcell__head{ display: flex; align-items: center; gap: 10px; }
+  .bcell__head .dot{
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.5);
+    animation: pulse 3s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .bcell__title{ font-size: 20px; font-weight: 500; letter-spacing: -0.012em; color: var(--ink-strong); }
+  .bcell__sub{ margin-top: 6px; font-size: 16px; color: var(--ink-mid); letter-spacing: -0.005em; }
+  .bcell__num{
+    font-size: var(--h2); font-weight: 500;
+    letter-spacing: -0.04em; line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .bcell__num .u{ font-size: 22px; font-weight: 500; color: var(--ink-mid); letter-spacing: -0.02em; }
+
+  /* раскладка bento: разные размеры, разная плотность, broken-grid вынос */
+  .bc-a{ grid-column: 1 / span 7;  grid-row: span 5; }   /* фото: продукты */
+  .bc-b{ grid-column: 8 / span 5;  grid-row: span 5; }   /* 22 мин, кольцо */
+  .bc-c{ grid-column: 1 / span 4;  grid-row: span 4; }   /* 40+ сценариев */
+  .bc-d{ grid-column: 5 / span 4;  grid-row: span 4; }   /* фото: спальня */
+  .bc-e{ grid-column: 9 / span 4;  grid-row: span 5; }   /* приложение (табы) */
+  /* broken-grid: карточка «Уборка кухни» чуть выступает вверх и глубже тень */
+  .bc-b{
+    transform: translateY(-18px); z-index: 3;
+    box-shadow: 0 1px 1px rgba(10,10,10,.04), 0 22px 46px rgba(10,10,10,.13);
+  }
+  .bc-b:hover{ transform: translateY(-22px); }
+
+  /* карточка «Уборка кухни · 22 мин» — кольцо-таймер */
+  .bcell__ring{ position: relative; width: 240px; height: 240px; margin: auto; }
+  .bcell__ring svg{
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    animation: spinSlow 60s linear infinite;
+  }
+  .bcell__ring svg circle{
+    fill: var(--accent);
+    transform-box: fill-box; transform-origin: center;
+    animation: dotBreathe 3s ease-in-out infinite;
+  }
+  .bcell__ring-num{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+  }
+  .bcell__ring-num .n{
+    font-size: var(--h3); font-weight: 500;
+    letter-spacing: -0.025em; color: var(--ink-strong);
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .bcell__ring-num .l{ font-size: 15px; color: var(--ink-mid); }
+
+  /* карточка «Сценарии» — строки как в приложении, с iOS-тумблерами */
+  .bcell__scen{
+    margin-top: auto;
+    display: flex; flex-direction: column;
+  }
+  .bcell__scen-row{
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 2px;
+    border-top: 1px solid rgba(10,10,10,.07);
+    font-size: 15px;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+  }
+  .bcell__scen-row .when{
+    margin-left: auto;
+    font-size: 13px; color: var(--ink-mid);
+    font-variant-numeric: tabular-nums;
+  }
+  /* iOS-тумблер */
+  .tgl{
+    position: relative;
+    width: 40px; height: 24px;
+    border-radius: 12px;
+    background: rgba(10,10,10,.14);
+    flex-shrink: 0;
+    transition: background .45s var(--ease);
+  }
+  .tgl::after{
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(10,10,10,.25);
+    transition: transform .45s var(--ease);
+  }
+  .tgl.is-on{ background: var(--accent); }
+  .tgl.is-on::after{ transform: translateX(16px); }
+
+  /* карточка «приложение» — живой виджет как на iPhone (вертикально) */
+  .bcell--app .bcell__pad{
+    flex-direction: column;
+    gap: 18px;
+  }
+  .bcell--app .bcell__lead{ max-width: none; }
+  .bapp{
+    border-radius: 20px;
+    background: rgba(10,10,10,.035);
+    border: 1px solid rgba(10,10,10,.07);
+    padding: 16px 18px;
+  }
+  /* Таб-бар в стиле iOS: сегмент-контрол */
+  .bapp__tabs{
+    display: flex; gap: 3px;
+    margin: 14px 0 4px;
+    padding: 3px;
+    background: rgba(10,10,10,.05);
+    border-radius: 11px;
+  }
+  .bapp__tab{
+    flex: 1; padding: 8px 0;
+    border: none; border-radius: 9px;
+    background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    color: var(--ink-mid);
+    transition: background .35s var(--ease), color .35s var(--ease), box-shadow .35s var(--ease);
+  }
+  .bapp__tab.is-active{
+    background: #fff; color: var(--ink-strong);
+    box-shadow: 0 1px 2px rgba(10,10,10,.1);
+  }
+  /* Панели вкладок */
+  .bapp__panel{ display: none; padding-top: 6px; }
+  .bapp__panel.is-active{ display: block; animation: bappFade .4s var(--ease); }
+  @keyframes bappFade{ from{ opacity: 0; transform: translateY(6px); } to{ opacity: 1; transform: none; } }
+  /* строка отчёта */
+  .bapp__rep{
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(10,10,10,.06);
+    font-size: 14.5px; color: var(--ink);
+  }
+  .bapp__rep:last-child{ border-bottom: none; padding-bottom: 2px; }
+  .bapp__rep .t{ margin-left: auto; font-size: 12.5px; color: var(--ink-mid); font-variant-numeric: tabular-nums; }
+  .bapp__rep-dot{
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent); box-shadow: 0 0 8px rgba(94,194,214,.5);
+  }
+  .bapp__head{
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(10,10,10,.07);
+    font-size: 14px; font-weight: 500;
+    color: var(--ink-strong);
+  }
+  .bapp__head .st{
+    margin-left: auto;
+    font-size: 12.5px; font-weight: 400;
+    color: var(--ink-mid);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .bapp__head .st i{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #34c759;
+    box-shadow: 0 0 8px rgba(52,199,89,.5);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .bapp__row{
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 0;
+    border-bottom: 1px solid rgba(10,10,10,.06);
+    font-size: 14.5px;
+    color: var(--ink);
+  }
+  .bapp__row:last-child{ border-bottom: none; padding-bottom: 4px; }
+  .bapp__row .t{ margin-left: auto; font-size: 12.5px; color: var(--ink-mid); font-variant-numeric: tabular-nums; }
+  /* виджет заряда: тонкая шкала */
+  .bapp__charge{
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 14px 0 13px;
+    border-bottom: 1px solid rgba(10,10,10,.06);
+  }
+  .bapp__charge-top{
+    display: flex; align-items: baseline;
+    font-size: 14.5px; color: var(--ink);
+  }
+  .bapp__charge-top b{
+    margin-left: auto;
+    font-weight: 500; font-size: 14.5px;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .bapp__bar{
+    height: 4px; border-radius: 2px;
+    background: rgba(10,10,10,.08);
+    overflow: hidden;
+  }
+  .bapp__bar i{
+    display: block; height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+    transition: width 1.6s var(--ease) .5s;
+  }
+  .is-sr-zone .bapp__bar i{ width: 84%; }
+
+  /* ====== 06 · ИНЖЕНЕРИЯ — sticky-морф «голова → целый робот» ======
+     Светлый фон. По центру canvas листает кадры отъезда камеры
+     (те же frames-morph, что в hero): из крупной головы вырастает
+     робот в полный рост, а вокруг него по одному включаются
+     характеристики. Никаких мелких фотографий. */
+  .spec{
+    position: relative;
+    background: var(--bg);
+  }
+  .spec__pin{
+    position: relative;
+    height: 300vh;
+  }
+  .spec__stage{
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .spec__head-c{
+    position: absolute;
+    left: 50%; top: 9vh;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 3;
+    width: min(900px, 90vw);
+  }
+  #specCanvas{
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .spec__fallback{
+    display: none;
+    position: absolute;
+    left: 50%; bottom: 0;
+    transform: translateX(-50%);
+    height: 78vh; width: auto;
+  }
+  .spec__stat{
+    position: absolute;
+    width: min(280px, 24vw);
+    border-top: 1px solid rgba(10,10,10,.12);
+    padding-top: 16px;
+    z-index: 2;
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity .9s var(--ease), transform .9s var(--ease);
+  }
+  .spec__stat.is-live{ opacity: 1; transform: none; }
+  .spec__stat--l{ left: 7vw; }
+  .spec__stat--r{ right: 7vw; text-align: right; }
+  .spec__stat--r{ margin-left: auto; }
+  .spec__stat .val{
+    font-size: 40px; font-weight: 500;
+    letter-spacing: -0.035em; line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .spec__stat .val .u{ font-size: 20px; color: var(--ink-mid); font-weight: 400; margin-left: 4px; }
+  .spec__stat .lbl{
+    margin-top: 8px;
+    font-size: 16px; color: #555;
+    letter-spacing: -0.01em;
+  }
+  .spec__stat .lbl small{
+    display: block; margin-top: 3px;
+    font-size: 13.5px; color: var(--ink-mid);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+  /* «главное слово» подписи — крупнее, единый ритм слева и справа */
+  .spec__stat .lbl{ font-weight: 500; }
+  /* вертикальные позиции: три яруса слева и справа */
+  .spec__stat[data-spi="0"]{ top: 30vh; }
+  .spec__stat[data-spi="1"]{ top: 51vh; }
+  .spec__stat[data-spi="2"]{ top: 72vh; }
+  .spec__stat[data-spi="3"]{ top: 30vh; }
+  .spec__stat[data-spi="4"]{ top: 51vh; }
+  .spec__stat[data-spi="5"]{ top: 72vh; }
+
+  /* ══════════ 07 · ОТЗЫВЫ — editorial-раскладка «фокус + галерея» ══════════
+     Композиция уровня Awwwards: слева — крупная фокус-цитата с большим фото
+     владельца и живой метрикой; справа — вертикальная лента-галерея других
+     владельцев, которая мягко перелистывается (scroll-driven активная карточка).
+     Никаких трёх одинаковых колонок. */
+  .voices{
+    position: relative;
+    background: #f6f8f6;
+    padding: 16vh 0 15vh;
+    overflow: hidden;
+  }
+  .voices__wrap{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  .voices__head{
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 48px; flex-wrap: wrap;
+    margin-bottom: 68px;
+  }
+  /* сводная строка-репутация справа от заголовка */
+  .voices__summary{
+    display: flex; align-items: center; gap: 30px;
+  }
+  .voices__summary-item{ text-align: right; }
+  .voices__summary-num{
+    font-size: 38px; font-weight: 500; letter-spacing: -0.035em;
+    color: var(--ink-strong); line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .voices__summary-num .u{ font-size: 20px; color: var(--ink-mid); }
+  .voices__summary-lbl{ margin-top: 6px; font-size: 14px; color: var(--ink-mid); }
+  .voices__stars{ display: inline-flex; gap: 3px; margin-bottom: 6px; justify-content: flex-end; }
+  .voices__stars svg{ width: 17px; height: 17px; fill: var(--accent-strong); }
+
+  /* Основная editorial-сетка: фокус 1.55fr + галерея 1fr */
+  .voices__grid{
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 28px;
+    align-items: stretch;
+  }
+
+  /* ЛЕВО: фокус — ДВЕ отдельные рамки: фото (сверху) + отзыв (снизу).
+     Текст НЕ накладывается на фото. Обе рамки в едином светлом стиле. */
+  .vfocus{
+    display: flex; flex-direction: column; gap: 20px;
+    min-height: 560px;
+  }
+  /* Рамка фото */
+  .vfocus__photo{
+    position: relative;
+    flex: 1; min-height: 300px;
+    border-radius: 26px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #e6e2db 0%, #d3dee1 100%);
+    border: 1px solid rgba(10,10,10,.05);
+  }
+  .vfocus__ph{ position: absolute; inset: 0; }
+  .vfocus__ph::after{
+    content: "фото владельца";
+    position: absolute; left: 24px; top: 22px;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(10,10,10,.28);
+  }
+  /* чип с метрикой поверх фото — в стиле iOS */
+  .vfocus__badge{
+    position: absolute; left: 22px; bottom: 22px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.7);
+    border-radius: 100px;
+    font-size: 14px; color: var(--ink-strong);
+  }
+  .vfocus__badge b{ font-weight: 600; font-variant-numeric: tabular-nums; }
+  .vfocus__badge .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 10px rgba(94,194,214,.6);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  /* Рамка отзыва */
+  .vfocus__card{
+    border-radius: 26px;
+    padding: 38px 42px 34px;
+    background: rgba(255,255,255,.96);
+    border: 1px solid rgba(10,10,10,.05);
+    box-shadow: var(--shadow-card);
+  }
+  .vfocus__mark{
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 64px; line-height: .5; color: var(--accent);
+    opacity: .45; display: block; height: 26px;
+  }
+  .vfocus__q{
+    margin: 0 0 28px;
+    font-size: clamp(21px, 1.7vw, 28px);
+    line-height: 1.36; letter-spacing: -0.018em;
+    color: #24282a; font-weight: 400;
+    text-wrap: pretty;
+    transition: opacity .5s var(--ease), transform .5s var(--ease);
+  }
+  .vfocus__who{ display: flex; align-items: center; gap: 15px; }
+  .vfocus__ava{
+    width: 50px; height: 50px; border-radius: 50%;
+    background: linear-gradient(135deg, #dfe4e6, #c6cfd2);
+    display: grid; place-items: center;
+    font-size: 16px; font-weight: 500; color: #55606a;
+    flex-shrink: 0;
+  }
+  .vfocus__name{ font-size: 16px; font-weight: 500; color: var(--ink-strong); }
+  .vfocus__role{ font-size: 14px; color: var(--ink-mid); margin-top: 2px; }
+  .vfocus__days{
+    margin-left: auto; text-align: right;
+    display: flex; flex-direction: column; align-items: flex-end;
+  }
+  .vfocus__days b{
+    font-size: 26px; font-weight: 500; color: var(--ink-strong);
+    letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .vfocus__days span{ font-size: 13px; color: var(--ink-mid); margin-top: 3px; }
+
+  /* ПРАВО: вертикальная лента-галерея владельцев — тянется по высоте левой */
+  .vlist{ display: flex; flex-direction: column; gap: 16px; justify-content: space-between; }
+  .vitem{
+    position: relative;
+    display: grid; grid-template-columns: 56px 1fr; gap: 18px;
+    align-items: center;
+    padding: 22px 24px;
+    border-radius: 22px;
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(10,10,10,.05);
+    cursor: pointer;
+    transition: background .5s var(--ease), box-shadow .5s var(--ease),
+                transform .5s var(--ease), border-color .5s var(--ease);
+  }
+  .vitem:hover{ transform: translateX(-4px); }
+  .vitem.is-active{
+    background: rgba(255,255,255,.98);
+    box-shadow: var(--shadow-card);
+    border-color: rgba(94,194,214,.3);
+  }
+  /* индикатор активного — вертикальная акцентная линия слева */
+  .vitem::before{
+    content: ""; position: absolute; left: 0; top: 50%;
+    width: 3px; height: 0; border-radius: 3px;
+    background: var(--accent-strong);
+    transform: translateY(-50%);
+    transition: height .5s var(--ease);
+  }
+  .vitem.is-active::before{ height: 52%; }
+  .vitem__ph{
+    width: 56px; height: 56px; border-radius: 16px;
+    background: linear-gradient(135deg, #d4dadd, #b9c1c5);
+    flex-shrink: 0;
+  }
+  .vitem__q{
+    margin: 0 0 10px;
+    font-size: 15.5px; line-height: 1.4; letter-spacing: -0.01em;
+    color: #40474b;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vitem__meta{ display: flex; align-items: center; gap: 8px; }
+  .vitem__name{ font-size: 14px; font-weight: 500; color: var(--ink-strong); }
+  .vitem__role{ font-size: 13px; color: var(--ink-mid); }
+  .vitem__role::before{ content: "· "; }
+
+  /* ====== 08 · ПРЕДЗАКАЗ ====== */
+  .order{
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .order__wrap{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 16vh 48px 14vh;
+    display: grid;
+    grid-template-columns: 1fr 560px;
+    gap: 60px;
+    align-items: center;
+  }
+  .order__price-row{
+    margin-top: 56px;
+    display: flex; align-items: baseline; gap: 20px;
+    flex-wrap: wrap;
+  }
+  .order__price{
+    font-size: clamp(44px, 4vw, 64px);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .order__price-note{ font-size: 17px; color: var(--ink-mid); letter-spacing: -0.01em; }
+  .order__cta-row{
+    margin-top: 44px;
+    display: flex; align-items: center; gap: 22px;
+    flex-wrap: wrap;
+  }
+  .order__btn{
+    height: 68px;
+    padding: 0 40px;
+    display: inline-flex; align-items: center; gap: 14px;
+    background: var(--ink-strong);
+    color: #fff;
+    border: none; border-radius: 100px;
+    font-family: "Inter", sans-serif;
+    font-size: 20px; letter-spacing: -0.01em;
+    cursor: pointer;
+    transition: background .3s var(--ease), transform .4s var(--ease), box-shadow .5s var(--ease);
+    box-shadow: 0 14px 34px rgba(10,10,10,.16);
+  }
+  .order__btn:hover{
+    background: var(--accent-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 44px rgba(43,149,170,.28);
+  }
+  .order__btn .ar{ transition: transform .35s var(--ease); }
+  .order__btn:hover .ar{ transform: translateX(4px); }
+  .order__deposit{ font-size: 15px; color: var(--ink-mid); line-height: 1.5; }
+  .order__trust{
+    margin-top: 64px;
+    display: flex; gap: 44px;
+    flex-wrap: wrap;
+  }
+  .order__trust-item{ font-size: 15px; color: #555; display: flex; align-items: center; gap: 10px; }
+  .order__trust-item .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(94,194,214,.5);
+    flex-shrink: 0;
+  }
+  .order__figure{ position: relative; }
+  .order__figure img{
+    width: 100%; height: auto;
+    border-radius: var(--radius-card);
+  }
+  /* чип статуса на портрете */
+  .order__status{
+    position: absolute; left: 26px; bottom: 26px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 18px;
+    background: rgba(255,255,255,.85);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(10,10,10,.06);
+    border-radius: 100px;
+    font-size: 15px; color: var(--ink-strong);
+    box-shadow: var(--shadow-card);
+  }
+  .order__status .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(94,194,214,.7);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  /* ====== FOOTER ====== */
+  .foot{
+    background: #0a0a0a;
+    color: rgba(255,255,255,.55);
+    padding: 90px 0 46px;
+  }
+  .foot__wrap{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  .foot__top{
+    display: flex;
+    justify-content: space-between;
+    gap: 60px;
+    flex-wrap: wrap;
+    padding-bottom: 64px;
+    border-bottom: 1px solid rgba(255,255,255,.09);
+  }
+  .foot__brand h3{
+    margin: 0;
+    font-family: "Mondwest", "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 34px;
+    color: #fff;
+    letter-spacing: -0.005em;
+  }
+  .foot__brand p{
+    margin: 14px 0 0;
+    font-size: 16px;
+    color: rgba(255,255,255,.42);
+    max-width: 300px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+  }
+  .foot__cols{ display: flex; gap: 90px; flex-wrap: wrap; }
+  .foot__col h4{
+    margin: 0 0 20px;
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,.38);
+  }
+  .foot__col a{
+    display: block;
+    margin-bottom: 13px;
+    color: rgba(255,255,255,.7);
+    text-decoration: none;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    transition: color .3s var(--ease);
+  }
+  .foot__col a:hover{ color: var(--accent); }
+  .foot__bottom{
+    padding-top: 34px;
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: rgba(255,255,255,.35);
+  }
+
+  /* ====== 09 · ВОПРОС/ОТВЕТ — диалог с Roxy ====== */
+  .faq{
+    position: relative;
+    background: var(--bg);
+    padding: 15vh 0;
+  }
+  .faq__wrap{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+    display: grid;
+    grid-template-columns: 440px 1fr;
+    gap: 90px;
+    align-items: start;
+  }
+  .faq__aside{ position: sticky; top: 12vh; }
+  /* плашка «Roxy онлайн» — серая, Apple-стиль (без полусинего колхоза) */
+  .faq__hint{
+    margin-top: 36px;
+    display: inline-flex; align-items: center; gap: 11px;
+    padding: 12px 18px;
+    border-radius: 100px;
+    background: rgba(10,10,10,.045);
+    border: 1px solid rgba(10,10,10,.07);
+    font-size: 15px; color: var(--ink-mid);
+  }
+  .faq__hint b{ color: var(--ink-strong); font-weight: 500; }
+  .faq__hint .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #34c759;   /* «онлайн»-зелёный как в iOS/мессенджерах */
+    box-shadow: 0 0 8px rgba(52,199,89,.55);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .qa{ border-bottom: 1px solid rgba(10,10,10,.09); }
+  .qa:first-child{ border-top: 1px solid rgba(10,10,10,.09); }
+  .qa__q{
+    width: 100%;
+    display: flex; align-items: center; gap: 24px;
+    padding: 30px 4px;
+    background: none; border: none;
+    font-family: "Inter", sans-serif;
+    font-size: clamp(19px, 1.7vw, 24px);
+    letter-spacing: -0.02em;
+    color: var(--ink-strong);
+    text-align: left;
+    cursor: pointer;
+    transition: color .3s var(--ease);
+  }
+  .qa__q:hover{ color: var(--accent-strong); }
+  .qa__num{
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    color: var(--ink-low);
+    flex-shrink: 0;
+    width: 30px;
+  }
+  .qa__plus{
+    margin-left: auto;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(10,10,10,.16);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    position: relative;
+    transition: background .4s var(--ease), border-color .4s var(--ease), transform .5s var(--ease);
+  }
+  .qa__plus::before, .qa__plus::after{
+    content: ""; position: absolute;
+    background: var(--ink-strong);
+    transition: background .4s var(--ease);
+  }
+  .qa__plus::before{ width: 12px; height: 1.5px; }
+  .qa__plus::after{ width: 1.5px; height: 12px; }
+  .qa.is-open .qa__plus{
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: rotate(135deg);
+  }
+  .qa.is-open .qa__plus::before, .qa.is-open .qa__plus::after{ background: #fff; }
+  /* раскрытие: grid 0fr → 1fr — плавная высота без JS-замеров */
+  .qa__body{
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .7s var(--ease);
+  }
+  .qa.is-open .qa__body{ grid-template-rows: 1fr; }
+  .qa__body-in{ overflow: hidden; }
+  .qa__answer{
+    display: flex; gap: 18px;
+    padding: 6px 4px 34px 54px;
+    max-width: 640px;
+  }
+  /* аватар Roxy — фото головы (как в мессенджере) */
+  .qa__ava{
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #1a1d20;
+    border: 1px solid rgba(10,10,10,.08);
+    position: relative;
+  }
+  .qa__ava img{
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center 30%;
+  }
+  /* зелёная точка «онлайн» в углу аватара */
+  .qa__ava::after{
+    content: ""; position: absolute; right: 0; bottom: 0;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #34c759; border: 2px solid #f6f8f6;
+  }
+  .qa__bubble{
+    position: relative;
+    padding: 18px 24px;
+    background: #f3f6f5;
+    border-radius: 4px 22px 22px 22px;
+    font-size: 17px;
+    line-height: 1.55;
+    letter-spacing: -0.01em;
+    color: #3a3a3a;
+    min-height: 58px;
+    display: flex; align-items: center;
+  }
+  /* индикатор «Roxy печатает…» */
+  .qa__typing{ display: inline-flex; gap: 5px; }
+  .qa__typing i{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    animation: typDot 1.1s ease-in-out infinite;
+  }
+  .qa__typing i:nth-child(2){ animation-delay: .15s }
+  .qa__typing i:nth-child(3){ animation-delay: .3s }
+  @keyframes typDot{
+    0%,100%{ transform: translateY(0); opacity: .4 }
+    40%{ transform: translateY(-5px); opacity: 1 }
+  }
+  .qa__text{ display: none; }
+  .qa__text.is-shown{
+    display: block;
+    animation: fadeUp .6s var(--ease);
+  }
+
+  /* ====== 10 · КОНТАКТЫ — карта офисов ====== */
+  .contact{
+    position: relative;
+    background: #0a0a0a;
+    color: #fff;
+    padding: 16vh 0 12vh;
+  }
+  .contact__wrap{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  .contact__wrap .sec-title{ color: #fff; }
+  .contact__head{
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 48px; flex-wrap: wrap;
+    margin-bottom: 64px;
+  }
+  .contact__online{
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 13px 20px;
+    border-radius: 100px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12);
+    font-size: 15px; color: rgba(255,255,255,.75);
+  }
+  .contact__online .dot{
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(94,194,214,.8);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .contact__map{
+    position: relative;
+    border-radius: var(--radius-card);
+    border: 1px solid rgba(255,255,255,.09);
+    background:
+      radial-gradient(90% 120% at 50% 0%, rgba(94,194,214,.06) 0%, rgba(94,194,214,0) 55%),
+      rgba(255,255,255,.02);
+    overflow: hidden;
+  }
+  .contact__map svg{ display: block; width: 100%; height: auto; margin-top: 54px; }
+  /* техно-метка над картой — тонкий хайрлайн, как приборная панель */
+  .cmap-meta{
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 19px 26px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    font-size: 13px;
+    color: rgba(255,255,255,.42);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    z-index: 2;
+  }
+  .cmap-meta .live{ display: inline-flex; align-items: center; gap: 8px; }
+  .cmap-meta .live i{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(94,194,214,.7);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .cmap-grid{ fill: rgba(255,255,255,.10); }
+  .cmap-route{
+    fill: none;
+    stroke: rgba(94,194,214,.55);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 7;
+    animation: routeFlow 2.6s linear infinite;
+  }
+  @keyframes routeFlow{ to{ stroke-dashoffset: -10 } }
+  .cmap-pin{ cursor: pointer; }
+  .cmap-pin .core{
+    fill: var(--accent);
+    transition: r .4s var(--ease);
+  }
+  .cmap-pin .halo{
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    opacity: .5;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: haloPulse 2.6s ease-out infinite;
+  }
+  @keyframes haloPulse{
+    0%{ transform: scale(.4); opacity: .8 }
+    100%{ transform: scale(1.9); opacity: 0 }
+  }
+  .cmap-pin text{
+    fill: rgba(255,255,255,.85);
+    font-family: "Inter", sans-serif;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .cmap-pin .tz{
+    fill: rgba(255,255,255,.4);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cmap-pin.is-hot .core{ r: 8; }
+  /* карточки офисов */
+  .contact__offices{
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .office{
+    padding: 30px 32px 26px;
+    border-radius: var(--radius-card-sm);
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.09);
+    transition: background .5s var(--ease), transform .5s var(--ease), border-color .5s var(--ease);
+    cursor: default;
+  }
+  .office:hover{
+    background: rgba(255,255,255,.07);
+    border-color: rgba(94,194,214,.35);
+    transform: translateY(-4px);
+  }
+  .office__city{
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  }
+  .office__city h3{
+    margin: 0; font-size: 22px; font-weight: 500;
+    letter-spacing: -0.02em; color: #fff;
+  }
+  .office__time{
+    font-size: 26px; font-weight: 500;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .office__addr{
+    margin-top: 10px;
+    font-size: 15px; line-height: 1.5;
+    color: rgba(255,255,255,.55);
+  }
+  .office__status{
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14.5px;
+    color: rgba(255,255,255,.65);
+    min-height: 40px;
+  }
+  .office__status .d{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(94,194,214,.6);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .office__status .msg{ transition: opacity .45s var(--ease); }
+  .office__status .msg.is-swap{ opacity: 0; }
+  /* прямые контакты — крупные строки email / Telegram / телефон
+     в стиле «Поговорим» из ранней версии: hover подсвечивает и выводит стрелку */
+  .contact__links{
+    margin-top: 64px;
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .clink{
+    position: relative;
+    display: flex; align-items: center; gap: 28px;
+    padding: 26px 6px;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+    text-decoration: none; color: #fff;
+    overflow: hidden;
+    transition: padding-left .45s var(--ease);
+  }
+  .clink::before{
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    background: linear-gradient(90deg, rgba(94,194,214,.14), rgba(94,194,214,0));
+    transition: width .5s var(--ease);
+  }
+  .clink:hover{ padding-left: 26px; }
+  .clink:hover::before{ width: 100%; }
+  .clink__k{
+    position: relative; width: 150px; flex-shrink: 0;
+    font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: rgba(255,255,255,.5);
+  }
+  .clink__v{
+    position: relative; flex: 1;
+    font-size: clamp(22px, 2.4vw, 38px); font-weight: 400;
+    letter-spacing: -0.03em; color: #fff;
+  }
+  .clink__ar{
+    position: relative; font-size: 24px; color: var(--accent);
+    opacity: 0; transform: translateX(-12px);
+    transition: opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  .clink:hover .clink__ar{ opacity: 1; transform: none; }
+
+  /* ====== АДАПТИВ НОВЫХ СЕКЦИЙ ====== */
+  @media (max-width: 1100px){
+    .bento__grid{ grid-auto-rows: 88px; }
+    .bc-a{ grid-column: 1 / span 12; grid-row: span 5; }
+    .bc-b{ grid-column: 1 / span 12; grid-row: span 5; }
+    .bc-c{ grid-column: 1 / span 6;  grid-row: span 4; }
+    .bc-d{ grid-column: 7 / span 6;  grid-row: span 4; }
+    .bc-e{ grid-column: 1 / span 12; grid-row: span 4; }
+    /* инженерия на узких экранах: без sticky-морфа, фото + сетка статов */
+    .spec__pin{ height: auto; }
+    .spec__stage{ position: static; height: auto; padding: 12vh 24px; }
+    #specCanvas{ display: none; }
+    .spec__fallback{
+      display: block; position: static;
+      transform: none; height: auto;
+      max-width: 380px; margin: 40px auto 0;
+    }
+    .spec__head-c{ position: static; transform: none; margin: 0 auto; }
+    .spec__stat, .spec__stat--l, .spec__stat--r{
+      position: static; width: auto; text-align: left;
+      opacity: 1; transform: none; margin-top: 28px;
+    }
+    .bcell--app .bcell__pad{ flex-direction: column; align-items: stretch; }
+    .bapp{ margin-left: 0; max-width: none; }
+    .voices__grid{ grid-template-columns: 1fr; }
+    .voice:nth-child(2), .voice:nth-child(3){ margin-top: 0; }
+    .order__wrap{ grid-template-columns: 1fr; }
+    .faq__wrap{ grid-template-columns: 1fr; gap: 40px; }
+    .faq__aside{ position: static; }
+    .contact__offices{ grid-template-columns: 1fr; }
+  }
+
+  /* ====== RESPECT REDUCED MOTION ====== */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+    /* reduced-motion: overlay блока 2 виден статично */
+    .b2-overlay .b2-eyebrow, .b2-overlay .b2-sub,
+    .b2-overlay .b2-cta, .b2-overlay .b2card{ opacity: 1 !important; transform: none !important; }
+    .b2-overlay .b2-inner{ transform: none !important; }
+    /* reduced-motion: новые секции видны сразу, без движения */
+    [data-sr], .notif, .spec__stat{ opacity: 1 !important; transform: none !important; }
+    .calm__row .tr i{ width: calc(var(--w) * 1%) !important; }
+    .bapp__bar i{ width: 84% !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="morph-container" id="morphContainer">
+<div class="stage" id="stage">
+  <div class="stage__scaled" id="stageScaled">
+
+    <!-- NAV -->
+    <nav class="nav">
+      <div class="nav__brand">
+        <div class="nav__logo">R</div>
+        <div class="nav__brand-text">
+          <h1>Roxy Robotics</h1>
+          <small>Engineering company</small>
+        </div>
+      </div>
+      <div class="nav__center">
+        <a href="#">Каталог</a>
+        <a href="#">Возможности</a>
+        <a href="#">Видео отзывы</a>
+        <a href="#">Гарантия</a>
+        <a href="#">Контакты</a>
+      </div>
+      <div class="nav__cta">
+        <span class="nav__cta-text">Связаться с нами</span>
+        <div class="nav__cta-btn">→</div>
+      </div>
+    </nav>
+
+    <!-- IMAGE SEQUENCE через CANVAS (идеальный scrub без мерцания) -->
+    <div class="hero__media">
+      <canvas class="hero__canvas" id="heroCanvas"></canvas>
+      <div class="hero__loader" id="heroLoader">
+        <div class="hero__loader-bar"><div class="hero__loader-fill" id="loaderFill"></div></div>
+      </div>
+    </div>
+
+    <!-- ТАЙТЛ -->
+    <div class="hero__title-wrap">
+      <div class="hero__model">
+        <span class="dot"></span>
+        <span>Roxy Robot</span>
+      </div>
+      <h2 class="hero__h1">
+        <span class="line"><span id="line1Text"></span><span class="caret" id="caret1"></span></span>
+        <span class="line"><span id="line2Text"></span><span class="caret" id="caret2"></span></span>
+      </h2>
+    </div>
+
+    <!-- CARD: Экономия времени 1200 часов/месяц (Figma 123:1644) -->
+    <article class="card card--ai">
+      <div class="card-inner">
+        <div class="head-row">
+          <div class="head-left">
+            <span class="card__dot"></span>
+            <span class="card__title">Экономия времени</span>
+          </div>
+          <span class="card__arrow">→</span>
+        </div>
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 173 173" aria-hidden="true">
+            <g id="ringDots"></g>
+          </svg>
+          <div class="ring-num">
+            <div class="ring-num-stack">
+              <span data-count-to="1200" data-suffix="">0</span>
+              <div class="ring-num-label">часов/ месяц</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- CARD: Ежедневно 128+ -->
+    <article class="card card--daily">
+      <div class="card-inner">
+        <div class="head-row">
+          <span class="icon-clock"></span>
+          <span class="card__title">Ежедневно</span>
+        </div>
+        <div class="sub">Выполнено задач</div>
+        <div class="big-num"><span data-count-to="128" data-suffix="+">0+</span></div>
+        <div class="equalizer" id="bars"></div>
+      </div>
+    </article>
+
+    <!-- CARD: Заряд 2ч -->
+    <article class="card card--mini card--charge">
+      <div class="card-inner">
+        <div class="body">
+          <div class="h-row">
+            <span class="dot"></span>
+            <span>Заряд</span>
+          </div>
+          <div class="sub-row">До полной батареи</div>
+          <div class="arc-wrap">
+            <svg class="arc-svg" viewBox="0 0 220 113" aria-hidden="true">
+              <g id="arcDots"></g>
+            </svg>
+            <div class="arc-num"><span data-count-to="2" data-suffix=" ч">0 ч</span></div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- HINT под Гарантией -->
+    <div class="below-warranty-hint">
+      <div class="mouse-hint"></div>
+      <div class="mouse-hint-label">Двигайте мышью</div>
+    </div>
+
+    <!-- CARD: Гарантия 3 года -->
+    <article class="card card--mini card--warranty">
+      <div class="card-inner">
+        <div class="body">
+          <div class="h-row">
+            <span class="dot"></span>
+            <span>Гарантия</span>
+          </div>
+          <div class="sub-row">Официальная</div>
+          <div class="big-num"><span data-count-to="3" data-suffix=" года">0 года</span></div>
+          <div class="timeline">
+            <div class="timeline__bg"></div>
+            <div class="timeline__active"></div>
+            <span class="timeline__tick t0"></span>
+            <span class="timeline__tick t1"></span>
+            <span class="timeline__tick t2"></span>
+            <span class="timeline__tick t3"></span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Кнопка «Смотреть видео» — pill со стеклом и play-морфом.
+         При hover: круг-play заливается акцентом, кнопка приподнимается. -->
+    <button class="btn-secondary" type="button">
+      <span class="btn-play" aria-hidden="true">
+        <svg viewBox="0 0 12 14" width="11" height="13"><path d="M1 1.2 11 7 1 12.8Z" fill="currentColor"/></svg>
+      </span>
+      <span class="btn-label">Смотреть видео</span>
+    </button>
+
+  </div>
+
+  <!-- ====== OVERLAY БЛОКА 2 — поверх canvas в sticky-сцене морфа ======
+       Робот на canvas (кадр 240 = полный рост) — единственный робот.
+       Здесь только тексты и карточки-факты о скорости, появляются по
+       прогрессу отъезда. Координаты сцены 1920×1198 (масштаб как у hero). -->
+  <div class="b2-overlay" id="b2Overlay">
+
+    <!-- Эйбрау + заголовок (слева, появляются на середине отъезда) -->
+    <p class="b2-eyebrow" data-b2><span class="eyebrow-chip">02 · Скорость</span></p>
+    <h2 class="b2-title" aria-label="В четыре раза быстрее человека">
+      <span class="b2-line"><span class="b2-inner">В четыре раза</span></span>
+      <span class="b2-line"><span class="b2-inner">быстрее</span></span>
+      <span class="b2-line"><span class="b2-inner">человека</span></span>
+    </h2>
+    <p class="b2-sub" data-b2>Пока вы делаете одно дело — Roxy успевает четыре. Не отвлекаясь и&nbsp;не&nbsp;уставая.</p>
+
+    <!-- КАРТОЧКА (слева): Ваше время — 3 варианта через переключатель.
+         Табы сверху, тело меняется. Все три минималистичны и про скорость. -->
+    <article class="b2card b2card--mult" data-b2card data-variant="a">
+      <div class="b2card__head">
+        <span class="b2card__dot"></span>
+        <span class="b2card__title">Ваше время</span>
+        <div class="b2card__switch" role="tablist" aria-label="Вариант карточки">
+          <button class="b2sw is-on" data-var="a" role="tab" aria-selected="true">A</button>
+          <button class="b2sw" data-var="b" role="tab" aria-selected="false">B</button>
+          <button class="b2sw" data-var="c" role="tab" aria-selected="false">C</button>
+        </div>
+      </div>
+
+      <!-- Вариант A: крупная кратность + столбики 1ч / 4ч -->
+      <div class="b2var b2var--a is-on" data-var="a">
+        <div class="b2card__sub">1&nbsp;час Roxy = 4&nbsp;часа человека</div>
+        <div class="b2card__bignum">×4</div>
+        <div class="b2bars" id="b2MultBars"></div>
+      </div>
+
+      <!-- Вариант B: две шкалы времени, наглядное «за то же время» -->
+      <div class="b2var b2var--b" data-var="b">
+        <div class="b2card__sub">За один час работы</div>
+        <div class="b2clock" id="b2Clock" aria-hidden="true">
+          <div class="b2clock__row">
+            <span class="b2clock__who">Roxy</span>
+            <span class="b2clock__bar b2clock__bar--roxy"><i style="--w:100%"></i></span>
+            <span class="b2clock__val">1&nbsp;ч</span>
+          </div>
+          <div class="b2clock__row">
+            <span class="b2clock__who">Человек</span>
+            <span class="b2clock__bar b2clock__bar--human"><i style="--w:25%"></i></span>
+            <span class="b2clock__val">¼</span>
+          </div>
+        </div>
+        <div class="b2clock__cap">Один и тот же объём дел</div>
+      </div>
+
+      <!-- Вариант C: сэкономленное время за неделю -->
+      <div class="b2var b2var--c" data-var="c">
+        <div class="b2card__sub">Освобождается в неделю</div>
+        <div class="b2card__bignum">21<span class="b2card__unit"> ч</span></div>
+        <div class="b2week" id="b2Week" aria-hidden="true"></div>
+        <div class="b2clock__cap">Почти целые сутки — вам</div>
+      </div>
+    </article>
+
+    <!-- КАРТОЧКА 3 (справа верх): Реакция 0,3 с -->
+    <article class="b2card b2card--react" data-b2card>
+      <div class="b2card__head">
+        <span class="b2card__dot"></span>
+        <span class="b2card__title">Реакция</span>
+      </div>
+      <div class="b2card__sub">На голосовую команду</div>
+      <div class="b2card__bignum">0,3<span class="b2card__unit"> с</span></div>
+      <div class="b2wave" id="b2Wave">
+        <svg viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true"><path id="b2WavePath" fill="none" stroke="var(--accent)" stroke-width="2"/></svg>
+      </div>
+    </article>
+
+    <!-- КАРТОЧКА 4 (справа низ): Быстрее пылесоса ×3,7 -->
+    <article class="b2card b2card--race" data-b2card>
+      <div class="b2card__head">
+        <span class="b2card__dot"></span>
+        <span class="b2card__title">Скорость</span>
+      </div>
+      <div class="b2card__sub">Быстрее робота-пылесоса</div>
+      <div class="b2card__bignum">×3,7</div>
+      <div class="b2race" id="b2Race" aria-hidden="true">
+        <div class="b2race__track b2race__track--top"><span class="b2race__label">Roxy</span><span class="b2race__dot b2race__dot--roxy"></span></div>
+        <div class="b2race__track b2race__track--bot"><span class="b2race__label">Пылесос</span><span class="b2race__dot b2race__dot--vac"></span></div>
+      </div>
+    </article>
+
+    <!-- Кнопка предзаказа (появляется последней) -->
+    <button class="b2-cta" type="button" data-b2>
+      <span class="b2-cta__label">Оформить предзаказ</span>
+      <span class="b2-cta__arrow" aria-hidden="true">→</span>
+    </button>
+
+  </div>
+
+  <!-- Overlay киноперехода: чёрная штора + видео на месте блока «Скорость».
+       ВНУТРИ .stage (100vh), чтобы кадрирование видео совпадало с реальным
+       блоком «Забота» (тот же контейнер 100vh + object-fit:cover). -->
+  <div class="morph-cut" id="morphCut" aria-hidden="true">
+    <video class="morph-cut__video" id="morphCutVideo" muted playsinline loop preload="auto" poster="video/poster-1.jpg">
+      <source src="video/demo-1-delivery.mp4" type="video/mp4">
+    </video>
+    <div class="morph-cut__flash" id="morphCutFlash"></div>
+    <div class="morph-cut__grade"></div>
+    <!-- ПОЛНЫЙ контент блока «Забота» прямо в киноперехода: заголовок,
+         подзаголовок и уведомления собираются поверх видео на том же месте.
+         Отдельного #vidWrap больше нет — переход И есть блок «Забота». -->
+    <div class="morph-cut__label" id="morphCutLabel">
+      <p class="morph-cut__eyebrow"><span class="eyebrow-chip eyebrow-chip--onvideo">03 · Забота</span></p>
+      <h2 class="morph-cut__title">Пока вас нет —<br>дом живёт сам</h2>
+      <p class="morph-cut__sub" id="morphCutSub">Встретит курьера и заберёт доставку —<br>вы узнаете об этом из уведомления.</p>
+      <div class="morph-cut__notifs" id="morphCutNotifs">
+        <div class="notif" data-cutnotif="0">
+          <span class="notif__icon" aria-hidden="true">R</span>
+          <div class="notif__body">
+            <div class="notif__row"><span class="notif__app">Roxy · Дом</span><span class="notif__time">18:42</span></div>
+            <div class="notif__title">Доставка принята</div>
+            <div class="notif__text">Два пакета. Уже несу на кухню.</div>
+          </div>
+        </div>
+        <div class="notif" data-cutnotif="1">
+          <span class="notif__icon" aria-hidden="true">R</span>
+          <div class="notif__body">
+            <div class="notif__row"><span class="notif__app">Roxy · Дом</span><span class="notif__time">18:43</span></div>
+            <div class="notif__title">Всё убрано на кухне</div>
+            <div class="notif__text">Продукты в холодильнике, коробки — на вынос.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- (блок «Забота» теперь целиком реализован в киноперехода выше —
+     отдельная секция #vidWrap удалена, чтобы видео не показывалось дважды) -->
+<template id="vidWrapRemoved">
+  <div class="vid" id="vid1">
+    <video class="vid__media" id="vid1Media" muted playsinline loop preload="auto"
+           poster="video/poster-1.jpg">
+      <source src="video/demo-1-delivery.mp4" type="video/mp4">
+    </video>
+    <div class="vid__grade"></div>
+    <div class="vid__inner">
+      <p class="vid__eyebrow" data-reveal><span class="eyebrow-chip eyebrow-chip--onvideo">03 · Забота</span></p>
+      <h2 class="vid__title" data-reveal>
+        <span class="vl"><span class="vi">Пока вас нет —</span></span>
+        <span class="vl"><span class="vi">дом живёт сам</span></span>
+      </h2>
+      <p class="vid__sub" data-reveal>Встретит курьера и заберёт доставку —<br>вы узнаете об этом из уведомления.</p>
+      <div class="notif-stack">
+        <div class="notif" data-notif="0">
+          <span class="notif__icon" aria-hidden="true">R</span>
+          <div class="notif__body">
+            <div class="notif__row"><span class="notif__app">Roxy · Дом</span><span class="notif__time">18:42</span></div>
+            <div class="notif__title">Доставка принята</div>
+            <div class="notif__text">Два пакета. Уже несу на кухню.</div>
+          </div>
+        </div>
+        <div class="notif" data-notif="1">
+          <span class="notif__icon" aria-hidden="true">R</span>
+          <div class="notif__body">
+            <div class="notif__row"><span class="notif__app">Roxy · Дом</span><span class="notif__time">18:43</span></div>
+            <div class="notif__title">Всё убрано на кухне</div>
+            <div class="notif__text">Продукты в холодильнике, коробки — на вынос.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- ═══════════ 04 · ТИШИНА — спальня, тёмный editorial ═══════════ -->
+<section class="calm" id="calm" data-parallax-zone>
+  <img class="calm__img" src="assets/bedroom-tuck.jpg" alt="Roxy заправляет постель в спальне" data-parallax>
+  <div class="calm__grade"></div>
+  <div class="calm__inner">
+    <div class="calm__panel" data-sr>
+      <div class="calm__meta">
+        <span class="live"><i></i>Акустический отчёт · спальня</span>
+        <span>07:12</span>
+      </div>
+      <p class="sec-eyebrow" data-sr="2">04 · Тишина</p>
+      <h2 class="sec-title" data-sr="2">Работает так тихо,<br>что <em>не разбудит</em></h2>
+      <p class="sec-sub" data-sr="3">Заправит постель и&nbsp;приберётся в&nbsp;спальне,<br>пока вы&nbsp;завтракаете. Приводы — тише шёпота.</p>
+      <div class="calm__db" data-sr="3">
+        <div>
+          <div class="calm__db-num"><span data-scount="36">0</span><span class="calm__db-unit"> дБ</span></div>
+          <div class="calm__db-lbl">уровень шума в работе</div>
+        </div>
+        <div class="calm__db-bars" aria-hidden="true" id="calmBars"></div>
+      </div>
+      <div class="calm__compare" data-sr="4">
+        <div class="calm__row"><span>Пылесос</span><span class="tr"><i style="--w:100"></i></span><span class="db">75 дБ</span></div>
+        <div class="calm__row"><span>Холодильник</span><span class="tr"><i style="--w:56"></i></span><span class="db">42 дБ</span></div>
+        <div class="calm__row is-roxy"><span>Roxy</span><span class="tr"><i style="--w:48"></i></span><span class="db">36 дБ</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 05 · ВОЗМОЖНОСТИ — bento ═══════════ -->
+<section class="bento" id="bento">
+ <div class="bento__layout">
+  <div class="bento__head">
+    <p class="sec-eyebrow" data-sr>05 · Возможности</p>
+    <h2 class="sec-title" data-sr="2">Один Roxy —<br><em>весь дом</em></h2>
+    <p class="sec-sub" data-sr="3">Учится вашим привычкам с&nbsp;первого дня: как&nbsp;вы складываете свитеры, куда ставите чашку и&nbsp;во&nbsp;сколько просыпаетесь.</p>
+    <!-- мини-пульт: намёк на приложение, комнаты подсвечиваются по кругу -->
+    <div class="bento__pilot" data-sr="4" aria-hidden="true">
+      <div class="bento__pilot-top"><span class="dot"></span>Roxy сейчас<span class="st">на кухне</span></div>
+      <div class="bento__pilot-rooms" id="bentoRooms">
+        <span class="bento__pilot-room is-on">Кухня</span>
+        <span class="bento__pilot-room">Спальня</span>
+        <span class="bento__pilot-room">Гостиная</span>
+      </div>
+    </div>
+  </div>
+  <div class="bento__grid" data-sr-zone>
+    <article class="bcell bcell--photo bc-a" data-sr>
+      <img src="assets/kitchen-groceries.jpg" alt="Roxy несёт пакет с продуктами по кухне" loading="lazy">
+      <span class="bcell__chip"><span class="dot"></span>Принёс продукты · 09:12</span>
+    </article>
+    <article class="bcell bc-b" data-sr="2">
+      <div class="bcell__pad">
+        <div class="bcell__head"><span class="dot"></span><span class="bcell__title">Уборка кухни</span></div>
+        <div class="bcell__sub">Ужин на четверых — после готовки</div>
+        <div class="bcell__ring">
+          <svg viewBox="0 0 200 200" aria-hidden="true"><g id="bentoRingDots"></g></svg>
+          <div class="bcell__ring-num">
+            <span class="n"><span data-scount="22">0</span> мин</span>
+            <span class="l">до идеальной чистоты</span>
+          </div>
+        </div>
+      </div>
+    </article>
+    <article class="bcell bc-c" data-sr>
+      <div class="bcell__pad">
+        <div class="bcell__head"><span class="dot"></span><span class="bcell__title">Сценарии</span></div>
+        <div class="bcell__sub">Запомненных привычек дома — <b style="font-weight:500;color:var(--ink-strong)"><span data-scount="40">0</span>+</b></div>
+        <div class="bcell__scen" style="margin-top:14px">
+          <div class="bcell__scen-row"><span class="tgl is-on" aria-hidden="true"></span>Разбудить дом<span class="when">07:30</span></div>
+          <div class="bcell__scen-row"><span class="tgl is-on" aria-hidden="true"></span>Полить цветы<span class="when">пн · чт</span></div>
+          <div class="bcell__scen-row"><span class="tgl" id="tglLive" aria-hidden="true"></span>Погладить рубашки<span class="when">вечером</span></div>
+        </div>
+      </div>
+    </article>
+    <article class="bcell bcell--photo bc-d" data-sr="2">
+      <img src="assets/bedroom-stand.jpg" alt="Roxy в спальне у заправленной кровати" loading="lazy">
+      <span class="bcell__chip"><span class="dot"></span>Спальня готова · 08:04</span>
+    </article>
+    <article class="bcell bc-e bcell--app" data-sr="3">
+      <div class="bcell__pad">
+        <div class="bcell__lead">
+          <div class="bcell__head"><span class="dot"></span><span class="bcell__title">Всё&nbsp;— в&nbsp;приложении</span></div>
+          <div class="bcell__sub">Дом на&nbsp;ладони: сценарии и&nbsp;короткие отчёты&nbsp;Roxy</div>
+        </div>
+        <div class="bapp" aria-label="Виджет приложения Roxy">
+          <div class="bapp__head">Roxy · Дом<span class="st"><i></i>онлайн</span></div>
+          <!-- Таб-бар в стиле iOS: Сценарии / Отчёты -->
+          <div class="bapp__tabs" role="tablist">
+            <button class="bapp__tab is-active" data-tab="scen" type="button">Сценарии</button>
+            <button class="bapp__tab" data-tab="report" type="button">Отчёты</button>
+          </div>
+          <!-- Вкладка «Сценарии» -->
+          <div class="bapp__panel is-active" data-panel="scen">
+            <div class="bapp__row"><span class="tgl is-on" aria-hidden="true"></span>Разбудить дом<span class="t">07:30</span></div>
+            <div class="bapp__row"><span class="tgl is-on" aria-hidden="true"></span>Тихий режим<span class="t">до 09:00</span></div>
+            <div class="bapp__row"><span class="tgl" aria-hidden="true"></span>Погладить рубашки<span class="t">вечером</span></div>
+          </div>
+          <!-- Вкладка «Отчёты» -->
+          <div class="bapp__panel" data-panel="report">
+            <div class="bapp__rep"><span class="bapp__rep-dot"></span>Загрузил посудомойку<span class="t">13:47</span></div>
+            <div class="bapp__rep"><span class="bapp__rep-dot"></span>Принёс продукты<span class="t">09:12</span></div>
+            <div class="bapp__rep"><span class="bapp__rep-dot"></span>Заправил кровать<span class="t">08:04</span></div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+ </div>
+</section>
+
+<!-- ═══════════ 06 · ИНЖЕНЕРИЯ — из головы вырастает целый робот ═══════════ -->
+<section class="spec" id="spec">
+  <div class="spec__pin" id="specPin">
+    <div class="spec__stage">
+      <div class="spec__head-c">
+        <p class="sec-eyebrow" data-sr>06 · Инженерия</p>
+        <h2 class="sec-title" data-sr="2">Собран, как <em>часовой механизм</em></h2>
+      </div>
+      <canvas id="specCanvas" aria-hidden="true"></canvas>
+      <img class="spec__fallback" src="roxy-fullbody-web.png" alt="Roxy в полный рост">
+      <div class="spec__stat spec__stat--l" data-spi="0">
+        <div class="val"><span data-scount="172">0</span><span class="u">см</span></div>
+        <div class="lbl">Рост<small>достаёт до&nbsp;верхних полок</small></div>
+      </div>
+      <div class="spec__stat spec__stat--l" data-spi="1">
+        <div class="val"><span data-scount="47">0</span><span class="u">кг</span></div>
+        <div class="lbl">Вес<small>без следов на&nbsp;паркете</small></div>
+      </div>
+      <div class="spec__stat spec__stat--l" data-spi="2">
+        <div class="val"><span data-scount="18">0</span><span class="u">ч</span></div>
+        <div class="lbl">Автономность<small>полный день без&nbsp;подзарядки</small></div>
+      </div>
+      <div class="spec__stat spec__stat--r" data-spi="3">
+        <div class="val"><span data-scount="24">0</span></div>
+        <div class="lbl">Степени свободы<small>завязывает шнурки</small></div>
+      </div>
+      <div class="spec__stat spec__stat--r" data-spi="4">
+        <div class="val"><span data-scount="8">0</span><span class="u">камер</span></div>
+        <div class="lbl">Зрение<small>видит дом целиком</small></div>
+      </div>
+      <div class="spec__stat spec__stat--r" data-spi="5">
+        <div class="val"><span data-scount="360">0</span><span class="u">°</span></div>
+        <div class="lbl">Лидар<small>чувствует всё вокруг</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 07 · ОТЗЫВЫ ═══════════ -->
+<section class="voices" id="voices">
+  <div class="voices__wrap">
+    <div class="voices__head">
+      <div>
+        <p class="sec-eyebrow" data-sr>07 · Первые владельцы</p>
+        <h2 class="sec-title" data-sr="2">Им уже <em>не представить</em><br>дом без Roxy</h2>
+      </div>
+      <div class="voices__summary" data-sr="3">
+        <div class="voices__summary-item">
+          <div class="voices__stars" aria-label="4,9 из 5">
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4 7.4 13.6 2.2 9l6.9-.7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4 7.4 13.6 2.2 9l6.9-.7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4 7.4 13.6 2.2 9l6.9-.7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4 7.4 13.6 2.2 9l6.9-.7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4 7.4 13.6 2.2 9l6.9-.7z"/></svg>
+          </div>
+          <div class="voices__summary-num">4,9</div>
+          <div class="voices__summary-lbl">средняя оценка</div>
+        </div>
+        <div class="voices__summary-item">
+          <div class="voices__summary-num"><span data-scount="500">0</span></div>
+          <div class="voices__summary-lbl">семей уже с Roxy</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voices__grid" data-voices>
+      <!-- ЛЕВО: фокус — рамка фото + рамка отзыва (меняются по списку справа) -->
+      <blockquote class="vfocus" data-sr>
+        <div class="vfocus__photo">
+          <div class="vfocus__ph" id="vfocusPh"></div>
+          <div class="vfocus__badge">
+            <span class="dot"></span><b><span id="vfocusDays">214</span></b> дней с Roxy
+          </div>
+        </div>
+        <div class="vfocus__card">
+          <span class="vfocus__mark" aria-hidden="true">“</span>
+          <p class="vfocus__q" id="vfocusQ">Первую неделю я&nbsp;ходила за&nbsp;ним и&nbsp;проверяла. Потом перестала — он&nbsp;складывает бельё аккуратнее меня, и&nbsp;мне не&nbsp;стыдно это признать.</p>
+          <div class="vfocus__who">
+            <span class="vfocus__ava" id="vfocusAva">МК</span>
+            <div>
+              <div class="vfocus__name" id="vfocusName">Марина Ковалёва</div>
+              <div class="vfocus__role" id="vfocusRole">Архитектор · Москва</div>
+            </div>
+          </div>
+        </div>
+      </blockquote>
+
+      <!-- ПРАВО: вертикальная лента владельцев (активный подсвечен) -->
+      <div class="vlist" id="vlist" data-sr="2">
+        <article class="vitem is-active" data-voice
+          data-q="Первую неделю я ходила за ним и проверяла. Потом перестала — он складывает бельё аккуратнее меня, и мне не стыдно это признать."
+          data-name="Марина Ковалёва" data-role="Архитектор · Москва" data-ava="МК" data-days="214">
+          <div class="vitem__ph"></div>
+          <div>
+            <p class="vitem__q">Он складывает бельё аккуратнее меня — и мне не стыдно это признать.</p>
+            <div class="vitem__meta"><span class="vitem__name">Марина Ковалёва</span><span class="vitem__role">Москва</span></div>
+          </div>
+        </article>
+        <article class="vitem" data-voice
+          data-q="Дети зовут его Рокс. Кот спит у его зарядной станции. Кажется, он теперь просто член семьи — тихий и надёжный."
+          data-name="Андрей Лебедев" data-role="Отец троих · Санкт-Петербург" data-ava="АЛ" data-days="156">
+          <div class="vitem__ph"></div>
+          <div>
+            <p class="vitem__q">Дети зовут его Рокс. Кот спит у его зарядной станции. Теперь он член семьи.</p>
+            <div class="vitem__meta"><span class="vitem__name">Андрей Лебедев</span><span class="vitem__role">Санкт-Петербург</span></div>
+          </div>
+        </article>
+        <article class="vitem" data-voice
+          data-q="Я купил его ради уборки. А ценю за тишину: приходишь домой — а там порядок, ужин и ни единого лишнего звука."
+          data-name="Давид Саркисян" data-role="Ресторатор · Казань" data-ava="ДС" data-days="301">
+          <div class="vitem__ph"></div>
+          <div>
+            <p class="vitem__q">Купил ради уборки. А ценю за тишину: дома порядок, ужин и ни звука.</p>
+            <div class="vitem__meta"><span class="vitem__name">Давид Саркисян</span><span class="vitem__role">Казань</span></div>
+          </div>
+        </article>
+        <article class="vitem" data-voice
+          data-q="Родители в возрасте живут отдельно. Roxy напоминает им о лекарствах и присылает мне короткий отчёт вечером. Я стала спать спокойнее."
+          data-name="Ольга Наумова" data-role="Дочь · Екатеринбург" data-ava="ОН" data-days="88">
+          <div class="vitem__ph"></div>
+          <div>
+            <p class="vitem__q">Roxy напоминает родителям о лекарствах и шлёт мне отчёт. Я стала спать спокойнее.</p>
+            <div class="vitem__meta"><span class="vitem__name">Ольга Наумова</span><span class="vitem__role">Екатеринбург</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 08 · ПРЕДЗАКАЗ ═══════════ -->
+<section class="order" id="order">
+  <div class="order__wrap">
+    <div>
+      <p class="sec-eyebrow" data-sr>08 · Предзаказ</p>
+      <h2 class="sec-title" data-sr="2">Roxy уже <em>почти</em><br>у вашей двери</h2>
+      <p class="sec-sub" data-sr="3">Первая партия — 500&nbsp;роботов. Каждый собирается под&nbsp;владельца: рост полок, привычки семьи, оттенок кимоно.</p>
+      <div class="order__price-row" data-sr="3">
+        <span class="order__price">1 490 000 ₽</span>
+        <span class="order__price-note">или от 62 000 ₽/мес<br>в рассрочку на 24 месяца</span>
+      </div>
+      <div class="order__cta-row" data-sr="4">
+        <button class="order__btn" type="button" data-magnetic>
+          <span>Оформить предзаказ</span>
+          <span class="ar" aria-hidden="true">→</span>
+        </button>
+        <p class="order__deposit">Депозит 50 000 ₽ — возвратный<br>в любой момент до отгрузки</p>
+      </div>
+      <div class="order__trust" data-sr="4">
+        <span class="order__trust-item"><span class="dot"></span>Гарантия 3 года</span>
+        <span class="order__trust-item"><span class="dot"></span>Возврат 30 дней</span>
+        <span class="order__trust-item"><span class="dot"></span>Сервис на дому 24/7</span>
+      </div>
+    </div>
+    <figure class="order__figure" data-sr="2">
+      <img src="assets/head-portrait.jpg" alt="Портрет Roxy крупным планом" loading="lazy" data-parallax-soft>
+      <span class="order__status"><span class="dot"></span>Партия №1 · осталось 137 мест</span>
+    </figure>
+  </div>
+</section>
+
+<!-- ═══════════ 09 · ВОПРОС/ОТВЕТ — диалог с Roxy ═══════════ -->
+<section class="faq" id="faq">
+  <div class="faq__wrap">
+    <div class="faq__aside">
+      <p class="sec-eyebrow" data-sr>09 · Вопросы</p>
+      <h2 class="sec-title" data-sr="2">Спросите<br>у <em>самого Roxy</em></h2>
+      <p class="sec-sub" data-sr="3">Нажмите на&nbsp;вопрос — Roxy ответит лично. Он&nbsp;отвечает быстрее нашей службы поддержки.</p>
+      <div class="faq__hint" data-sr="4"><span class="dot"></span><b>Roxy</b>&nbsp;онлайн · отвечает за&nbsp;0,3&nbsp;с</div>
+    </div>
+    <div class="faq__list" data-sr="2">
+      <div class="qa">
+        <button class="qa__q" type="button" aria-expanded="false">
+          <span class="qa__num">01</span>
+          <span>Что будет, если Roxy что-то разобьёт?</span>
+          <span class="qa__plus" aria-hidden="true"></span>
+        </button>
+        <div class="qa__body"><div class="qa__body-in">
+          <div class="qa__answer">
+            <span class="qa__ava" aria-hidden="true"><img src="assets/head-portrait.jpg" alt="Roxy"></span>
+            <div class="qa__bubble">
+              <span class="qa__typing" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="qa__text">Такого ещё не случалось — я чувствую хрупкость предмета по весу и подстраиваю хват. Но если вдруг: каждый Roxy застрахован, компенсация — в течение 48 часов без разбирательств.</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="qa">
+        <button class="qa__q" type="button" aria-expanded="false">
+          <span class="qa__num">02</span>
+          <span>Безопасен ли Roxy рядом с детьми и котом?</span>
+          <span class="qa__plus" aria-hidden="true"></span>
+        </button>
+        <div class="qa__body"><div class="qa__body-in">
+          <div class="qa__answer">
+            <span class="qa__ava" aria-hidden="true"><img src="assets/head-portrait.jpg" alt="Roxy"></span>
+            <div class="qa__bubble">
+              <span class="qa__typing" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="qa__text">Я вижу всех, кто ниже метра, раньше, чем они видят меня, — и снижаю скорость вдвое. С котами у меня отдельные отношения: они любят спать у моей зарядной станции, там тепло.</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="qa">
+        <button class="qa__q" type="button" aria-expanded="false">
+          <span class="qa__num">03</span>
+          <span>Куда уходят данные с камер?</span>
+          <span class="qa__plus" aria-hidden="true"></span>
+        </button>
+        <div class="qa__body"><div class="qa__body-in">
+          <div class="qa__answer">
+            <span class="qa__ava" aria-hidden="true"><img src="assets/head-portrait.jpg" alt="Roxy"></span>
+            <div class="qa__bubble">
+              <span class="qa__typing" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="qa__text">Никуда. Всё, что я вижу, обрабатывается внутри моего корпуса и не покидает дом. В приложение уходят только текстовые отчёты — и то, если вы разрешили.</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="qa">
+        <button class="qa__q" type="button" aria-expanded="false">
+          <span class="qa__num">04</span>
+          <span>Что, если Roxy сломается?</span>
+          <span class="qa__plus" aria-hidden="true"></span>
+        </button>
+        <div class="qa__body"><div class="qa__body-in">
+          <div class="qa__answer">
+            <span class="qa__ava" aria-hidden="true"><img src="assets/head-portrait.jpg" alt="Roxy"></span>
+            <div class="qa__bubble">
+              <span class="qa__typing" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="qa__text">Я сообщу в сервис раньше, чем вы заметите: телеметрия видит износ за недели. Инженер приедет на дом в течение суток, а на время ремонта вам привезут подменного меня. Он тоже хороший.</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="qa">
+        <button class="qa__q" type="button" aria-expanded="false">
+          <span class="qa__num">05</span>
+          <span>Сможет ли он выучить мои правила дома?</span>
+          <span class="qa__plus" aria-hidden="true"></span>
+        </button>
+        <div class="qa__body"><div class="qa__body-in">
+          <div class="qa__answer">
+            <span class="qa__ava" aria-hidden="true"><img src="assets/head-portrait.jpg" alt="Roxy"></span>
+            <div class="qa__bubble">
+              <span class="qa__typing" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="qa__text">Покажите один раз — я запомню навсегда: как вы складываете свитеры, какой стороной ставите чашки, что нельзя трогать на рабочем столе. Сейчас я помню 40+ таких правил на дом.</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 10 · КОНТАКТЫ — карта офисов ═══════════ -->
+<section class="contact" id="contact">
+  <div class="contact__wrap">
+    <div class="contact__head">
+      <div>
+        <p class="sec-eyebrow" data-sr>10 · Контакты</p>
+        <h2 class="sec-title" data-sr="2">Мы рядом — в трёх<br><em>часовых поясах</em></h2>
+      </div>
+      <div class="contact__online" data-sr="3"><span class="dot"></span><span id="contactOnline">Сейчас в сети: 3 офиса Roxy</span></div>
+    </div>
+
+    <div class="contact__map" data-sr="2">
+      <div class="cmap-meta">
+        <span class="live"><i></i>Офисы Roxy · онлайн</span>
+        <span>UTC +2 · +3 · +9</span>
+      </div>
+      <svg viewBox="0 0 1200 420" role="img" aria-label="Карта офисов: Хельсинки, Москва, Токио">
+        <g id="cmapGrid"></g>
+        <path class="cmap-route" id="cmapRoute" d=""/>
+        <g id="cmapPins"></g>
+      </svg>
+    </div>
+
+    <div class="contact__offices" id="offices" data-sr-zone>
+      <article class="office" data-sr data-office="helsinki">
+        <div class="office__city"><h3>Хельсинки</h3><span class="office__time" data-tz="Europe/Helsinki">—:—</span></div>
+        <p class="office__addr">Дизайн-студия и материалы<br>Katajanokanlaituri 3, 00160</p>
+        <div class="office__status"><span class="d"></span><span class="msg">Roxy сейчас: учится гладить лён</span></div>
+      </article>
+      <article class="office" data-sr="2" data-office="moscow">
+        <div class="office__city"><h3>Москва</h3><span class="office__time" data-tz="Europe/Moscow">—:—</span></div>
+        <p class="office__addr">Штаб-квартира и шоурум<br>Большая Никитская, 12, стр. 1</p>
+        <div class="office__status"><span class="d"></span><span class="msg">Roxy сейчас: встречает гостей шоурума</span></div>
+      </article>
+      <article class="office" data-sr="3" data-office="tokyo">
+        <div class="office__city"><h3>Токио</h3><span class="office__time" data-tz="Asia/Tokyo">—:—</span></div>
+        <p class="office__addr">Лаборатория моторики<br>Сибуя, Джингумаэ 5-52-2</p>
+        <div class="office__status"><span class="d"></span><span class="msg">Roxy сейчас: заваривает матчу инженерам</span></div>
+      </article>
+    </div>
+
+    <div class="contact__links" data-sr>
+      <a class="clink" href="mailto:hello@roxyrobotics.ru">
+        <span class="clink__k">E-mail</span>
+        <span class="clink__v">hello@roxyrobotics.ru</span>
+        <span class="clink__ar" aria-hidden="true">→</span>
+      </a>
+      <a class="clink" href="https://t.me/roxyrobotics" target="_blank" rel="noopener">
+        <span class="clink__k">Telegram</span>
+        <span class="clink__v">@roxyrobotics</span>
+        <span class="clink__ar" aria-hidden="true">→</span>
+      </a>
+      <a class="clink" href="tel:+78002001717">
+        <span class="clink__k">Телефон</span>
+        <span class="clink__v">8&nbsp;800&nbsp;200-17-17</span>
+        <span class="clink__ar" aria-hidden="true">→</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="foot">
+  <div class="foot__wrap">
+    <div class="foot__top">
+      <div class="foot__brand">
+        <h3>Roxy Robotics</h3>
+        <p>Дом, который заботится о вас — а не наоборот.</p>
+      </div>
+      <div class="foot__cols">
+        <div class="foot__col">
+          <h4>Продукт</h4>
+          <a href="#bento">Возможности</a>
+          <a href="#spec">Спецификации</a>
+          <a href="#order">Предзаказ</a>
+        </div>
+        <div class="foot__col">
+          <h4>Компания</h4>
+          <a href="#voices">Владельцы</a>
+          <a href="#">Инженерия</a>
+          <a href="#">Пресса</a>
+        </div>
+        <div class="foot__col">
+          <h4>Связаться</h4>
+          <a href="mailto:hello@roxyrobotics.ru">hello@roxyrobotics.ru</a>
+          <a href="tel:+78002001717">8 800 200-17-17</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot__bottom">
+      <span>© 2026 Roxy Robotics · Engineering company</span>
+      <span>Москва · Токио · Хельсинки</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ====== 1. РЕСАЙЗ СЦЕНЫ ====== */
+  // Сцена 1920×1198 всегда вписывается ЦЕЛИКОМ в окно браузера,
+  // без обрезаний и без «пустой полосы» снизу.
+  // Используем меньший из двух scale-факторов, чтобы и ширина и
+  // высота помещались в окно. Свободное место центрируется.
+  const stage = document.getElementById('stage');
+  const scaled = document.getElementById('stageScaled');
+  const b2Overlay = document.getElementById('b2Overlay');
+  function resize(){
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const scale = Math.min(w / 1920, h / 1198);
+    const scaledW = 1920 * scale;
+    const scaledH = 1198 * scale;
+    const offsetX = (w - scaledW) / 2;
+    const offsetY = (h - scaledH) / 2;
+    const t = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    scaled.style.transform = t;
+    // Overlay блока 2 масштабируется идентично hero — координаты 1920×1198.
+    if (b2Overlay){ b2Overlay.style.transform = t; }
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ====== 1b. ПЕЧАТНАЯ МАШИНКА для заголовка ====== */
+  // Первая строка «Безупречно справляется» набирается один раз и стоит.
+  // Вторая строка циклится — печатаются полные варианты офферов:
+  //   «с домашней и рутинной работой»
+  //   «с готовкой и уборкой»
+  //   «со стиркой и глажкой»
+  //   «с влажной уборкой»
+  const line1 = 'Безупречно справляется';
+  const line2Variants = [
+    'с домашней и рутинной работой',
+    'с готовкой и уборкой',
+    'со стиркой и глажкой',
+    'с влажной уборкой'
+  ];
+  const line1El = document.getElementById('line1Text');
+  const line2El = document.getElementById('line2Text');
+  const caret1 = document.getElementById('caret1');
+  const caret2 = document.getElementById('caret2');
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  async function typeText(el, text, speed = 35){
+    el.textContent = '';
+    for (let i = 0; i < text.length; i++){
+      el.textContent += text[i];
+      await sleep(speed + Math.random() * 25);
+    }
+  }
+  async function eraseAll(el, speed = 18){
+    while (el.textContent.length > 0){
+      el.textContent = el.textContent.slice(0, -1);
+      await sleep(speed);
+    }
+  }
+
+  async function runTypewriter(){
+    if (reduced){
+      line1El.textContent = line1;
+      line2El.textContent = line2Variants[0];
+      return;
+    }
+    // 1-я строка — один раз
+    caret1.classList.add('is-on');
+    await sleep(300);
+    await typeText(line1El, line1, 38);
+    caret1.classList.remove('is-on');
+    // 2-я строка — цикл вариантов
+    caret2.classList.add('is-on');
+    await sleep(200);
+    let i = 0;
+    await typeText(line2El, line2Variants[i], 42);
+    await sleep(2200);
+    while (true){
+      await eraseAll(line2El);
+      i = (i + 1) % line2Variants.length;
+      await typeText(line2El, line2Variants[i], 50);
+      await sleep(2400);
+    }
+  }
+  runTypewriter();
+
+  /* ====== 2. Кольцо точек ====== */
+  const ringGroup = document.getElementById('ringDots');
+  const cx = 86.5, cy = 86.5;
+  const dots = 64;
+  const rOuter = 72;
+  const rInner = 54;
+  for (let i = 0; i < dots; i++){
+    const a = (i / dots) * Math.PI * 2;
+    const x1 = cx + Math.cos(a) * rOuter;
+    const y1 = cy + Math.sin(a) * rOuter;
+    const d1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    d1.setAttribute('cx', x1.toFixed(2));
+    d1.setAttribute('cy', y1.toFixed(2));
+    d1.setAttribute('r', '1.2');
+    d1.style.animationDelay = ((i / dots) * 3).toFixed(2) + 's';
+    ringGroup.appendChild(d1);
+
+    if (i % 2 === 0){
+      const r2 = rInner + Math.sin(a*3) * 1.6;
+      const x2 = cx + Math.cos(a) * r2;
+      const y2 = cy + Math.sin(a) * r2;
+      const d2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      d2.setAttribute('cx', x2.toFixed(2));
+      d2.setAttribute('cy', y2.toFixed(2));
+      d2.setAttribute('r', '.9');
+      d2.style.animationDelay = ((i / dots) * 3 + 1).toFixed(2) + 's';
+      ringGroup.appendChild(d2);
+    }
+  }
+
+  /* ====== 3. Эквалайзер + волна ====== */
+  const barsEl = document.getElementById('bars');
+  const BAR_COUNT = 11;
+  const basePattern = [.58,.82,.50,.92,.42,.55,.72,.95,.48,.78,.66];
+  const hideSparkAt = new Set([2, 5, 8]);
+  const barLines = []; // ссылки на DOM для волны
+  for (let i = 0; i < BAR_COUNT; i++){
+    const wrap = document.createElement('div');
+    wrap.className = 'b';
+    wrap.style.animationDelay = (0.95 + i * 0.06) + 's';
+
+    const line = document.createElement('div');
+    line.className = 'b__line';
+    line.style.setProperty('--h', (basePattern[i] * 100) + '%');
+
+    if (!hideSparkAt.has(i)) {
+      const spark = document.createElement('div');
+      spark.className = 'b__spark';
+      line.appendChild(spark);
+    }
+    wrap.appendChild(line);
+    barsEl.appendChild(wrap);
+    barLines.push({ line, base: basePattern[i] });
+  }
+
+  // Волна v3 — БЫСТРЕЕ и ЗАМЕТНЕЕ.
+  // Короткие бары растут до 0.95, длинные сжимаются до 0.30 — разница огромная.
+  function waveLoop(now){
+    if (!reduced){
+      const t = now * 0.0026; // ~2x быстрее
+      barLines.forEach((b, i) => {
+        const mid = 0.65;
+        const dirFromMid = b.base < mid ? 1 : -1;
+        const distFromMid = Math.abs(b.base - mid);
+        // Амплитуда УСИЛЕНА: 0.45..0.95
+        const amp = 0.45 + distFromMid * 0.50;
+        const sin = Math.sin(t + i * 0.55);
+        // Кламп шире: 0.15..1.0 (даёт реальные «короткие/длинные»)
+        const h = Math.max(0.15, Math.min(1.0, b.base + sin * amp * dirFromMid));
+        b.line.style.height = (h * 100) + '%';
+      });
+    }
+    requestAnimationFrame(waveLoop);
+  }
+  setTimeout(() => { if (!reduced) requestAnimationFrame(waveLoop); }, 2500);
+
+  /* ====== 4. Дуга для Заряд + бегущая волна заполнения ====== */
+  const arcGroup = document.getElementById('arcDots');
+  const arcCx = 110, arcCy = 113;
+  const arcR = 90;
+  const arcDots = 36;
+  const startAngle = 180;
+  const endAngle = 360;
+  const fillRatio = 0.92;
+  const arcCircles = []; // для волны
+  for (let i = 0; i < arcDots; i++){
+    const t = i / (arcDots - 1);
+    const angDeg = startAngle + (endAngle - startAngle) * t;
+    const a = angDeg * Math.PI / 180;
+    const x = arcCx + Math.cos(a) * arcR;
+    const y = arcCy + Math.sin(a) * arcR;
+    const filled = t < fillRatio;
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', x.toFixed(2));
+    c.setAttribute('cy', y.toFixed(2));
+    c.setAttribute('r', filled ? '2' : '1.5');
+    c.setAttribute('fill', filled ? '#5ec2d6' : '#cfcfcf');
+    if (!filled) c.setAttribute('opacity', '.35');
+    c.style.animationDelay = (1.05 + i*0.04).toFixed(2) + 's';
+    arcGroup.appendChild(c);
+    arcCircles.push({ circle: c, t, filled });
+  }
+
+  // Бегущая волна заполнения — как индикатор зарядки на iPhone.
+  // Каждые 3.6с волна проходит полный круг по дуге слева направо.
+  // Точки в "активной зоне" (±10° фазы) становятся ярче и крупнее.
+  const ARC_WAVE_DURATION = 3600;
+  function arcWaveLoop(now){
+    if (!reduced){
+      const phase = (now % ARC_WAVE_DURATION) / ARC_WAVE_DURATION; // 0..1
+      arcCircles.forEach(item => {
+        if (!item.filled) return; // на серых не трогаем
+        // расстояние точки до волны по t
+        let d = Math.abs(item.t - phase);
+        if (d > 0.5) d = 1 - d; // wrap-around (волна может цикл)
+        // ширина волны — 0.1 (10% дуги)
+        const inWave = d < 0.08;
+        if (inWave){
+          const intensity = 1 - (d / 0.08); // 1 в центре волны, 0 на краю
+          const r = 2 + intensity * 1.5;
+          const op = 1;
+          item.circle.setAttribute('r', r.toFixed(2));
+          item.circle.setAttribute('opacity', op);
+          item.circle.setAttribute('fill', '#5ec2d6');
+        } else {
+          item.circle.setAttribute('r', '2');
+          item.circle.setAttribute('opacity', '1');
+          item.circle.setAttribute('fill', '#5ec2d6');
+        }
+      });
+    }
+    requestAnimationFrame(arcWaveLoop);
+  }
+  setTimeout(() => { if (!reduced) requestAnimationFrame(arcWaveLoop); }, 2800);
+
+  /* ====== 5. Цифры по очереди ====== */
+  const counters = [
+    { sel: '.card--ai [data-count-to]',       delay: 1100, duration: 1400 },
+    { sel: '.card--daily [data-count-to]',    delay: 1450, duration: 1600 },
+    { sel: '.card--charge [data-count-to]',   delay: 1750, duration: 900 },
+    { sel: '.card--warranty [data-count-to]', delay: 2050, duration: 900 }
+  ];
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  function animateCount(el, duration){
+    const to = +el.dataset.countTo;
+    const suffix = el.dataset.suffix || '';
+    if (reduced){ el.textContent = to + suffix; return; }
+    const start = performance.now();
+    function tick(now){
+      const p = Math.min(1, (now - start) / duration);
+      const val = to * easeOutCubic(p);
+      el.textContent = Math.round(val) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  counters.forEach(c => {
+    document.querySelectorAll(c.sel).forEach(el => {
+      setTimeout(() => animateCount(el, c.duration), c.delay);
+    });
+  });
+
+  /* ====== 6. IMAGE SEQUENCE — реакция на мышку ======
+     После переименования папка содержит сквозную нумерацию
+       frame_0001.jpg ... frame_0273.jpg
+     Зоны (по позиции в папке = по новым именам):
+       1..124   — робот из центра уезжает налево (124 = крайнее лево)
+       125..146 — робот возвращается слева к центру (146 ≈ центр)
+       147..273 — робот поворачивается направо (273 = крайнее право)
+
+     Маппинг курсора (ось X 0..1 по всему окну):
+       0.0 → кадр 124 (макс. лево)
+       0.5 → кадр 1 (исходный центр) / кадр 147 (центр-вправо)
+       1.0 → кадр 273 (макс. право)
+
+     Линейный таймлайн TIMELINE для scrub'а курсором:
+       [124,123,...,1]    ← левая половина (124 кадра, реверс)
+       + [147,148,...,273] ← правая половина (127 кадров)
+     При простое мыши > 1.8с — idle-loop 125..146 (ping-pong).
+  */
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)) }
+
+  const TOTAL_FRAMES = 297;
+  function rangeNums(a, b){
+    const r = [];
+    for (let i = a; i <= b; i++) r.push(i);
+    return r;
+  }
+
+  // === РАЗМЕТКА КАДРОВ (по Эли) ===
+  //   1 → 89   — медленный поворот ЦЕНТР → ЛЕВО  (89 = крайнее лево)
+  //   89 → 118 — медленный возврат ЛЕВО → ЦЕНТР  (только для idle)
+  //   119      — центральная точка (для скраба ВПРАВО)
+  //   119 → 216 — медленный поворот ЦЕНТР → ПРАВО (216 = крайнее право)
+  //   216 → 297 — медленный возврат ПРАВО → ЦЕНТР (только для idle)
+  // Центральные кадры: 1, 119, 297 (визуально похожи, но НЕ идентичны).
+  //
+  // Скраб мышью: РАЗДЕЛЁННЫЕ дорожки для лево и право, без сшивания —
+  // выбор активной дорожки зависит от того, где курсор относительно центра.
+  // Между дорожками — мёртвая зона ±4% ширины окна, где показывается
+  // ПОСЛЕДНИЙ ЦЕНТРАЛЬНЫЙ КАДР (1 или 119), без переключения. Это убирает
+  // рывок при пересечении центра.
+
+  const leftFrames  = rangeNums(1, 89);     // 89 кадров (центр→лево)
+  const rightFrames = rangeNums(119, 216);  // 98 кадров (центр→право)
+  // Idle = весь цикл 1..297 (естественные возвраты заложены в видео)
+  const IDLE_FRAMES = rangeNums(1, TOTAL_FRAMES);
+
+  function framePath(n){
+    return `frames/frame_${String(n).padStart(5,'0')}.jpg`;
+  }
+
+  // Прелоадим ВСЕ 297 кадров (нужны и для скраба и для idle)
+  const allFrames = IDLE_FRAMES.slice();
+  const imageCache = new Map();   // n -> HTMLImageElement (УЖЕ ДЕКОДИРОВАННЫЙ)
+  let loadedCount = 0;
+  const totalToLoad = allFrames.length;
+
+  const canvas = document.getElementById('heroCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false }); // непрозрачный = быстрее
+  const loaderEl = document.getElementById('heroLoader');
+  const loaderFill = document.getElementById('loaderFill');
+
+  // Размеры canvas под DPR (resize-устойчиво)
+  function fitCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.max(1, Math.floor(rect.width  * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  // Рисуем кадр на canvas с object-fit: cover + object-position center 8%
+  function drawFrame(img){
+    if (!img || !img.complete || !img.naturalWidth) return;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    // cover-логика
+    const scale = Math.max(cw / iw, ch / ih);
+    const drawW = iw * scale;
+    const drawH = ih * scale;
+    // Object-position эмуляция: dy сдвигает картинку внутри canvas.
+    // dy = 0 → показываем верх кадра (голова сверху, плечи и грудь видны)
+    // На новом цикличном видео робот в полный рост, центрируем по верху.
+    const dx = (cw - drawW) / 2;
+    const dy = 0;
+    // фон-фоллбэк
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+  }
+
+  // Прелоад с decode() — каждый кадр становится «готов к рисованию»,
+  // никакого декодирования на лету при scrub
+  let firstFrameDrawn = false;
+  async function preloadAll(){
+    const promises = allFrames.map(n => {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => {
+          // decode() — гарантирует что пиксели декодированы и готовы к drawImage
+          if (img.decode){
+            img.decode().then(() => {
+              imageCache.set(n, img);
+              onOneLoaded();
+              resolve();
+            }).catch(() => {
+              imageCache.set(n, img);
+              onOneLoaded();
+              resolve();
+            });
+          } else {
+            imageCache.set(n, img);
+            onOneLoaded();
+            resolve();
+          }
+        };
+        img.onerror = () => { onOneLoaded(); resolve(); };
+        img.src = framePath(n);
+      });
+    });
+    function onOneLoaded(){
+      loadedCount++;
+      const pct = (loadedCount / totalToLoad) * 100;
+      if (loaderFill) loaderFill.style.width = pct + '%';
+
+      // Как только загрузили первый кадр — рисуем его сразу
+      // (не дожидаясь конца загрузки всех)
+      if (!firstFrameDrawn){
+        const firstImg = imageCache.get(1);
+        if (firstImg){
+          drawFrame(firstImg);
+          firstFrameDrawn = true;
+          canvas.classList.add('is-ready');
+        }
+      }
+    }
+    await Promise.all(promises);
+    setTimeout(() => loaderEl.classList.add('is-done'), 200);
+  }
+  preloadAll();
+
+  /* ====== МОРФ-СЕКВЕНЦИЯ (отъезд камеры: крупный план → полный рост) ======
+     Кадры frames-morph/morph_00001..00193.jpg. Кадр 1 = крупный план головы
+     (совпадает с hero), кадр 193 = робот в полный рост. Прогресс морфа
+     листает эти кадры на ТОМ ЖЕ canvas — никакого crossfade/шва. */
+  const MORPH_COUNT = 240;
+  const morphCache = new Map();
+  let morphLoaded = 0;
+  function morphPath(n){ return `frames-morph/morph_${String(n).padStart(5,'0')}.jpg`; }
+  function preloadMorph(){
+    for (let n = 1; n <= MORPH_COUNT; n++){
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        const set = () => { morphCache.set(n, img); morphLoaded++; };
+        img.decode ? img.decode().then(set).catch(set) : set();
+      };
+      img.onerror = () => { morphLoaded++; };
+      img.src = morphPath(n);
+    }
+  }
+  preloadMorph();
+
+  /* Рисует морф-кадр с плавным переходом «крупный план головы → весь робот».
+
+     КАЛИБРОВКА СТЫКА С HERO (замерено по пикселям, python/PIL):
+     hero-кадр показывает голову с макушкой на ~24% высоты canvas. В морф-
+     кадрах голова снята НИЖЕ (макушка на ~41% кадра, сверху белое поле) —
+     это просто другое кадрирование одного и того же робота. Чтобы на стыке
+     не было «белого экрана» и голова не прыгала, первый морф-кадр рисуется
+     с выравниванием головы РОВНО в позицию hero:
+       масштаб ≈ 0.90× натурального, голова-макушка сажается на HERO_HEAD_TOP.
+     По ходу секвенции (seqP 0→1) масштаб и якорь плавно переходят к
+     «весь кадр по высоте» — так получается настоящий отъезд камеры.
+
+     Когда придёт ЧИСТОВАЯ нарезка (первый кадр = точный hero-план),
+     эти константы, скорее всего, станут HEAD_TOP_FRAC≈0.145 и правка
+     сведётся к нулю — но универсальная формула ниже отработает и её. */
+  const HERO_HEAD_TOP = 0.24;      // где макушка головы на canvas в hero
+  const MORPH_HEAD_TOP = 0.414;    // где макушка в морф-кадре (доля высоты)
+  const MORPH_HEAD_H  = 0.206;     // высота головы в морф-кадре (доля высоты)
+  const HERO_HEAD_H   = 0.28;      // высота головы на canvas в hero
+  function drawMorphFrame(img, seqP){
+    if (!img || !img.complete || !img.naturalWidth) return;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const ease = seqP * seqP * (3 - 2 * seqP); // smoothstep
+
+    // Масштаб: старт — чтобы высота головы совпала с hero; финиш — весь кадр.
+    const startScale = (ch * HERO_HEAD_H) / (ih * MORPH_HEAD_H);
+    const endScale   = ch / ih;               // contain по высоте (робот целиком)
+    const scale = startScale + (endScale - startScale) * ease;
+    const drawW = iw * scale;
+    const drawH = ih * scale;
+    const dx = (cw - drawW) / 2;
+
+    // Вертикаль: старт — макушка на HERO_HEAD_TOP; финиш — весь кадр по центру.
+    const dyStart = HERO_HEAD_TOP * ch - MORPH_HEAD_TOP * drawH;
+    const dyEnd   = (ch - drawH) / 2;
+    const dy = dyStart + (dyEnd - dyStart) * ease;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+  }
+
+  // === Управление кадром по позиции мыши ===
+  // mouseRatio: 0 = левый край, 0.5 = центр, 1 = правый край
+  // Мёртвая зона ±DEADZONE вокруг центра — показывает центральный кадр
+  // без переключений (устраняет рывок при пересечении центра курсором).
+  const DEADZONE = 0.04; // 4% ширины окна
+
+  let mouseRatio = 0.5;        // целевая позиция мыши
+  let currentRatio = 0.5;      // текущая интерполированная позиция
+  let lastCenterFrame = 1;     // последний показанный центральный кадр (1 или 119)
+  let lastFrameShown = -1;
+  let lastMoveTs = performance.now();
+
+  window.addEventListener('mousemove', (e) => {
+    const w = window.innerWidth;
+    mouseRatio = clamp(e.clientX / w, 0, 1);
+    lastMoveTs = performance.now();
+  });
+  window.addEventListener('mouseleave', () => {
+    mouseRatio = 0.5;
+    lastMoveTs = performance.now();
+  });
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches[0]){
+      const w = window.innerWidth;
+      mouseRatio = clamp(e.touches[0].clientX / w, 0, 1);
+      lastMoveTs = performance.now();
+    }
+  }, { passive: true });
+
+  // По текущей плавной mouseRatio выбираем нужный кадр.
+  // ВАЖНО: маппинг ВНУТРИ половины — линейный, через ОДНУ дорожку
+  // (leftFrames или rightFrames). Никакого сшивания, никаких прыжков.
+  function frameForRatio(r){
+    if (r >= 0.5 - DEADZONE && r <= 0.5 + DEADZONE){
+      // Мёртвая зона у центра — держим последний центральный кадр
+      return lastCenterFrame;
+    }
+    if (r < 0.5){
+      // Левая половина: 0 → крайнее лево (89), 0.5-DEADZONE → центр (1)
+      const t = (r) / (0.5 - DEADZONE); // 0..1, где 0 = левый край, 1 = граница мёртвой зоны
+      const idx = Math.round((1 - t) * (leftFrames.length - 1));
+      lastCenterFrame = 1; // следующий вход в мёртвую зону — кадр 1
+      return leftFrames[idx];
+    } else {
+      // Правая половина: 0.5+DEADZONE → центр (119), 1 → крайнее право (216)
+      const t = (r - 0.5 - DEADZONE) / (0.5 - DEADZONE); // 0..1
+      const idx = Math.round(t * (rightFrames.length - 1));
+      lastCenterFrame = 119;
+      return rightFrames[idx];
+    }
+  }
+
+  // Idle-loop: цикличное проигрывание всей анимации (1..297 за 14 сек),
+  // НО с бесшовным стартом из текущего положения головы.
+  //
+  // Когда курсор останавливается на 1.8 сек:
+  //  1) находим где сейчас находится голова (lastFrameShown)
+  //  2) находим ближайший индекс этого кадра в IDLE_FRAMES (1..297)
+  //  3) idle начинает движение ИЗ ЭТОГО индекса, продолжая «вперёд»
+  //     в естественном направлении видео
+  //  4) никакого сброса mouseRatio в центр — он останется там же
+  //     где была мышь, и при возврате мыши scrub продолжит плавно
+  //
+  // При новом движении мыши idle прерывается, scrub стартует из текущего
+  // кадра — но scrub работает в координатах left/right Frames, поэтому
+  // мы плавно интерполируем currentRatio (lerp 0.08) к новой mouseRatio.
+  // Так как в момент выхода из idle currentRatio могло «уйти» от mouseRatio,
+  // нужно при первом mousemove МЯГКО продолжить с текущей видимой позиции.
+  let idleActive = false;
+  let idleFrameOffset = 0;     // с какого индекса IDLE_FRAMES стартовать
+  let idleStartTime = 0;       // когда idle начался
+  const IDLE_DELAY = 1800;
+  const IDLE_DURATION = 14000; // 14 сек полный круг 1..297
+
+  // Возвращает индекс в IDLE_FRAMES для текущего кадра lastFrameShown.
+  // Если lastFrameShown ∈ [1..297] — это просто frame-1 (т.к. IDLE_FRAMES = [1..297]).
+  function currentIdleIndex(){
+    if (lastFrameShown >= 1 && lastFrameShown <= TOTAL_FRAMES){
+      return lastFrameShown - 1;
+    }
+    return 0;
+  }
+
+  // Флаг активного морфа: устанавливается извне (см. блок MORPH внизу).
+  // Когда true — сцена «замирает» на центральном кадре 1 и не реагирует ни
+  // на мышь, ни на idle. Это критично: морфить крутящуюся голову нельзя.
+  window.__morphActive = false;
+  window.__morphSettling = 0; // 0..1 — насколько успокоилась голова (0=свободна, 1=заморожена в кадре 1)
+  window.__morphSeqActive = false; // true — canvas отдан под морф-секвенцию (applyMorph рисует сам)
+
+  function rafLoop(now){
+    if (!reduced){
+      // === MORPH FREEZE ===
+      // При активном морфе плавно тянем currentRatio к 0.5 (центр)
+      // и показываем строго кадр 1 (центральный старт).
+      if (window.__morphActive){
+        // Если идёт морф-секвенция — canvas рисует applyMorph, не мешаем.
+        if (window.__morphSeqActive){
+          requestAnimationFrame(rafLoop);
+          return;
+        }
+        // ПЛАВНЫЙ ВОЗВРАТ ГОЛОВЫ В ЦЕНТР.
+        // Не телепортируем на кадр 1 — мягко тянем currentRatio к 0.5
+        // и рисуем РЕАЛЬНЫЙ боковой кадр для текущей позиции, чтобы голова
+        // проехала все промежуточные кадры до центра. Коэффициент маленький
+        // и почти не растёт от settling — возврат всегда неспешный, дорогой.
+        mouseRatio = 0.5;
+        currentRatio += (0.5 - currentRatio) * 0.14;
+        // почти в центре — фиксируем ровно центр (кадр 1), готов к морфу.
+        // __headCentered отпирает морф-секвенцию (см. applyMorph).
+        if (Math.abs(currentRatio - 0.5) < 0.01){
+          currentRatio = 0.5;
+          window.__headCentered = true;
+        }
+        const frameNum = frameForRatio(currentRatio);
+        if (frameNum !== lastFrameShown){
+          const img = imageCache.get(frameNum);
+          if (img && img.complete && img.naturalWidth){
+            drawFrame(img);
+            lastFrameShown = frameNum;
+          }
+        }
+        requestAnimationFrame(rafLoop);
+        return;
+      }
+
+      const sinceMove = now - lastMoveTs;
+      let frameNum;
+
+      if (sinceMove > IDLE_DELAY){
+        if (!idleActive){
+          idleActive = true;
+          // Стартуем idle с того места, где сейчас голова.
+          // idleStartTime фиксируется так, чтобы при t=0 (мгновение перехода)
+          // idle-индекс был равен текущему frame'у.
+          idleFrameOffset = currentIdleIndex();
+          idleStartTime = now;
+        }
+        const elapsed = now - idleStartTime;
+        // прогресс idle с момента старта (idleFrameOffset = «нулевая точка»)
+        const progress = (elapsed / IDLE_DURATION) % 1; // 0..1, бесконечно
+        // полный «оборот» по IDLE_FRAMES, начиная с idleFrameOffset
+        const offsetIdx = (idleFrameOffset + Math.floor(progress * IDLE_FRAMES.length))
+                          % IDLE_FRAMES.length;
+        frameNum = IDLE_FRAMES[offsetIdx];
+        // НЕ сбрасываем mouseRatio — оставляем как было,
+        // чтобы при возврате мыши не было прыжка
+      } else {
+        if (idleActive){
+          // Только что вышли из idle. Чтобы scrub не дёрнулся обратно
+          // к старому положению — синхронизируем currentRatio с тем,
+          // что физически показано на экране сейчас.
+          // Конвертируем lastFrameShown в ratio (только если кадр входит
+          // в диапазон активного скраба).
+          if (lastFrameShown >= 1 && lastFrameShown <= 89){
+            // левая зона: чем больше номер кадра, тем дальше налево
+            // ratio в зоне [0..0.5-DEADZONE], где 0 = крайнее лево (кадр 89)
+            const t = (lastFrameShown - 1) / 88; // 0..1
+            currentRatio = (1 - t) * (0.5 - DEADZONE);
+          } else if (lastFrameShown >= 119 && lastFrameShown <= 216){
+            // правая зона
+            const t = (lastFrameShown - 119) / 97;
+            currentRatio = 0.5 + DEADZONE + t * (0.5 - DEADZONE);
+          } else {
+            // переходный кадр (90..118 или 217..297) — приближаем к центру
+            currentRatio = 0.5;
+          }
+          // mouseRatio пока совпадает с currentRatio,
+          // чтобы первый кадр scrub'а не делал прыжка
+          mouseRatio = currentRatio;
+        }
+        idleActive = false;
+        const lerp = 0.08;
+        currentRatio += (mouseRatio - currentRatio) * lerp;
+        frameNum = frameForRatio(currentRatio);
+      }
+
+      if (frameNum !== lastFrameShown){
+        const img = imageCache.get(frameNum);
+        if (img && img.complete && img.naturalWidth){
+          drawFrame(img);
+          lastFrameShown = frameNum;
+        }
+      }
+    }
+    requestAnimationFrame(rafLoop);
+  }
+  requestAnimationFrame(rafLoop);
+
+  /* ====== 7. Параллакс отключён ======
+     Карточки не двигаются от движения мыши — двигается только робот.
+     Внутри карточек продолжают работать собственные микро-анимации
+     (волна баров, волна дуги, цикл таймлайна, пульсация точек). */
+
+  /* ====== 8. MORPH: HERO → BLOCK 2 ======
+     Три фазы по прогрессу скролла p (0..1) внутри .morph-container:
+
+       p ∈ [0.00 .. 0.15]  — «успокоение»: голова замирает в кадре 1,
+                              контент hero (карточки, кнопка, тайтл) плавно уходит.
+       p ∈ [0.15 .. 0.65]  — «трансформация»: canvas-голова уменьшается и едет
+                              к позиции головы полноростового PNG; PNG «прорастает»
+                              снизу через mask-image, потом полностью видим.
+       p ∈ [0.65 .. 0.85]  — «стыковка»: canvas fade-out (голова сшита с PNG),
+                              PNG полностью видим.
+       p > 0.85 (в блоке 2) — контент блока 2 въезжает с staggered fade+shift.
+
+     Ключевые геометрические константы:
+       - Полноростовой PNG высотой 92vh стоит по центру sticky-сцены.
+       - Голова PNG находится примерно на 11% от верха своего bbox.
+       - Canvas в hero занимает область 96..1198 по Y в сцене 1920×1198.
+         Голова в этой области — верхняя треть.
+       - Морф ЛОЖИТ голову canvas'а на позицию головы PNG:
+         скейл ~0.32 (голова становится маленькой), смещение вверх ~-32%.
+  */
+  const morphContainer = document.getElementById('morphContainer');
+  const heroMedia = document.querySelector('.hero__media');
+  const heroCanvas = document.getElementById('heroCanvas');
+  const scaled2 = document.getElementById('stageScaled');
+  const b2ov = document.getElementById('b2Overlay');
+
+  // Клампованный easeInOutCubic
+  const easeInOut = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  // Морф завершается на HOLD_END дистанции контейнера, а последние
+  // (1 - HOLD_END) — ПАУЗА: p держится на 1, sticky-сцена не двигается,
+  // робот в полный рост + блок 2 стоят на месте. Скролл «дотягивает»
+  // карточки и не спешит на видео. Это и даёт удержание на кадре.
+  // Морф (отъезд камеры + блок «Скорость») завершается на HOLD_END дистанции.
+  // Далее HOLD_PAUSE — короткая пауза на финальном кадре (робот стоит).
+  // Последний участок — ЗОНА КИНОПЕРЕХОДА: чёрная штора гасит блок и на его
+  // месте проявляется видео «Забота». window.__morphTailP = прогресс 0..1
+  // внутри этой зоны (для applyMorph).
+  const HOLD_END = 0.52;    // морф + блок «Скорость» полностью собран
+  const CUT_START = 0.62;   // блок стоит коротко 0.52→0.62, затем затемнение
+                            // и сборка ПОЛНОГО блока «Забота» на месте (0.62→1)
+  function computeMorphProgress(){
+    const rect = morphContainer.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    const scrolled = -rect.top;
+    const raw = clamp(scrolled / Math.max(1, total), 0, 1);
+    // прогресс перехода: от CUT_START..1 сырой дистанции → 0..1
+    window.__morphTailP = clamp((raw - CUT_START) / (1 - CUT_START), 0, 1);
+    return clamp(raw / HOLD_END, 0, 1);
+  }
+
+  // Экспоненциальные easing — гораздо мягче cubic, дают «дорогое» ощущение.
+  const easeInOutExpo = t => {
+    if (t === 0) return 0;
+    if (t === 1) return 1;
+    return t < 0.5
+      ? Math.pow(2, 20 * t - 10) / 2
+      : (2 - Math.pow(2, -20 * t + 10)) / 2;
+  };
+  const easeOutExpo = t => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+
+  function applyMorph(p){
+    // Скролл вернулся в самый верх — сбрасываем «голова отцентрована»,
+    // чтобы при следующем листании возврат головы снова был плавным.
+    if (p <= 0.005) window.__headCentered = false;
+    // ==================================================================
+    // МОРФ ЧЕРЕЗ IMAGE-SEQUENCE (настоящий отъезд камеры).
+    // Кадры frames-morph/ листаются на canvas по прогрессу скролла:
+    //   кадр 1   = крупный план головы (совпадает с hero)
+    //   кадр 193 = робот в полный рост
+    //
+    //   p ∈ [0.00 .. 0.15]  — успокоение (голова в кадре 1, карточки уходят)
+    //   p ∈ [0.15 .. 0.85]  — морф-секвенция (кадры 1 → 193, отъезд камеры)
+    //   p ∈ [0.80 .. 1.00]  — тексты блока 2 (робот уже почти в полный рост)
+    // ==================================================================
+
+    // === Фаза 1: успокоение (голова плавно возвращается в центр) ===
+    // Растянута до 30% скролла — возврат головы всегда неспешный.
+    const settleP = clamp(p / 0.30, 0, 1);
+    window.__morphActive = p > 0.005;
+    window.__morphSettling = settleP;
+
+    // Карточки/тайтл/кнопка уходят раньше — фон чистый к началу отъезда.
+    const contentFade = 1 - easeInOutExpo(settleP);
+    scaled2.style.setProperty('--content-opacity', contentFade.toFixed(3));
+    scaled2.classList.toggle('is-fading', p > 0.005);
+
+    // Верхний белый фейд hero-видео нужен только на крупном плане.
+    // Гасим его в начале морфа — иначе он подсвечивает край над роботом
+    // в полный рост. На чистовых кадрах/фото фон уже чистый.
+    heroMedia.style.setProperty('--hero-fade', (1 - settleP).toFixed(3));
+
+    // === Морф-секвенция (отъезд камеры) ===
+    // Секвенция листается 0.30 → 0.85. НО включается ТОЛЬКО когда голова
+    // уже доехала в центр (__headCentered) — иначе виден скачок с боковой
+    // idle-головы на центрированный морф-кадр. Пока голова едет, canvas
+    // рисует rafLoop (боковой кадр → центр), морф ждёт.
+    const seqP = clamp((p - 0.30) / 0.55, 0, 1);
+    window.__morphSeqActive = p > 0.005 && window.__headCentered === true;
+    heroCanvas.style.opacity = '1';
+    heroCanvas.style.transform = 'none';
+    if (window.__morphSeqActive){
+      const idx = 1 + Math.round(seqP * (MORPH_COUNT - 1));
+      const img = morphCache.get(idx) || morphCache.get(MORPH_COUNT) || morphCache.get(1);
+      if (img) drawMorphFrame(img, seqP);
+    }
+
+    // === Скрытие меню — сразу после начала листания ===
+    // Пункты центрального меню растворяются вверх staggered (тихо, дорого).
+    // Логотип и «Связаться» остаются. Управляется классом на nav.
+    const nav = document.querySelector('.nav');
+    if (nav) nav.classList.toggle('nav--collapsed', p > 0.04);
+
+    // === Фаза 3: контент блока 2 — МОНТАЖНАЯ СКЛЕЙКА в конце ===
+    // Старые карточки блока 1 давно ушли (фаза 1). Робот едет на чистом
+    // фоне. Новые тексты/карточки появляются ТОЛЬКО когда робот почти
+    // во весь рост (p > 0.72) — никакого наезда старого и нового.
+    const titleP = easeOutExpo(clamp((p - 0.78) / 0.10, 0, 1));  // 0.78..0.88
+    const subP   = easeOutExpo(clamp((p - 0.83) / 0.10, 0, 1));  // 0.83..0.93
+    b2ov.style.setProperty('--b2-title-op', titleP.toFixed(3));
+    b2ov.style.setProperty('--b2-sub-op',   subP.toFixed(3));
+
+    // Карточки: staggered magnetic reveal, каждая со своим окном.
+    const cards = b2ov.querySelectorAll('[data-b2card]');
+    cards.forEach((card, i) => {
+      const start = 0.85 + i * 0.03;
+      const cp = easeOutExpo(clamp((p - start) / 0.11, 0, 1));
+      card.style.setProperty('--b2-card-op', cp.toFixed(3));
+    });
+    // Запуск живых диаграмм карточек, когда они начинают появляться
+    if (titleP > 0.4 && !window.__b2DiagramsOn){
+      window.__b2DiagramsOn = true;
+      startB2Diagrams();
+    }
+
+    const ctaP = easeOutExpo(clamp((p - 0.94) / 0.06, 0, 1));
+    b2ov.style.setProperty('--b2-cta-op', ctaP.toFixed(3));
+
+    // === КИНОПЕРЕХОД «Скорость → Забота» ===
+    // tail 0..1 (см. computeMorphProgress). Две фазы внутри перехода:
+    //   0.00..0.55 — чёрная штора наплывает: блок «Скорость» гаснет на месте.
+    //   0.45..1.00 — на том же месте кроссфейдом проявляется видео + заголовок.
+    applyCut(window.__morphTailP || 0);
+  }
+
+  const morphCut = document.getElementById('morphCut');
+  const morphCutVideo = document.getElementById('morphCutVideo');
+  const morphCutGrade = morphCut ? morphCut.querySelector('.morph-cut__grade') : null;
+  const morphCutLabel = document.getElementById('morphCutLabel');
+  const morphCutFlash = document.getElementById('morphCutFlash');
+  const morphCutSub = document.getElementById('morphCutSub');
+  const cutNotifs = morphCut ? Array.from(morphCut.querySelectorAll('[data-cutnotif]')) : [];
+  let cutPlaying = false;
+  function applyCut(tail){
+    if (!morphCut) return;
+    if (tail <= 0){
+      // вне зоны перехода — overlay полностью выключен, блок «Скорость» цел
+      morphCut.style.opacity = '0';
+      morphCutVideo.style.opacity = '0';
+      if (morphCutGrade) morphCutGrade.style.opacity = '0';
+      if (morphCutLabel){ morphCutLabel.style.opacity = '0'; morphCutLabel.style.transform = 'translateY(16px)'; }
+      if (morphCutSub){ morphCutSub.style.opacity = '0'; morphCutSub.style.transform = 'translateY(14px)'; }
+      cutNotifs.forEach(n => n.classList.remove('is-on'));
+      if (morphCutFlash) morphCutFlash.style.opacity = '0';
+      if (cutPlaying){ morphCutVideo.pause(); cutPlaying = false; }
+      return;
+    }
+    // ЖЁСТКО РАЗНЕСЁННЫЕ ФАЗЫ (чтобы блок и видео не смешивались):
+    //   tail 0.00..0.42 — чёрная штора наплывает 0→1. Блок «Скорость» ЦЕЛ
+    //                     под ней (не трогаем его), просто гаснет в чёрный.
+    //   tail 0.42..0.55 — держим ПОЛНОСТЬЮ чёрный экран (пауза-склейка).
+    //   tail 0.55..1.00 — на чёрном проявляется видео. Блок уже не виден.
+    const darkP = easeOutExpo(clamp(tail / 0.42, 0, 1));           // штора
+    const vidP  = easeOutExpo(clamp((tail - 0.55) / 0.42, 0, 1));  // видео
+    morphCut.style.opacity = '1';
+    // Чёрный фон держится на максимуме, пока видео не проявилось.
+    const blackAlpha = Math.max(darkP, 1 - vidP);
+    morphCut.style.background = `rgba(0,0,0,${blackAlpha.toFixed(3)})`;
+    morphCutVideo.style.opacity = vidP.toFixed(3);
+    // КЛЮЧ: как только штора закрыла блок (darkP≈1) — ПРЯЧЕМ сцену «Скорость»
+    // (canvas-робот + тексты), чтобы её силуэт не просвечивал сквозь видео.
+    // Прячем именно .stage__scaled, а не весь .stage (в нём лежит overlay).
+    const hideScene = darkP > 0.98;
+    scaled2.style.visibility = hideScene ? 'hidden' : 'visible';
+    if (morphCutGrade) morphCutGrade.style.opacity = vidP.toFixed(3);
+    // Вспышка-микроэмоция: короткий колокол вокруг стыка tail≈0.55
+    if (morphCutFlash){
+      const fp = Math.exp(-Math.pow((tail - 0.55) / 0.05, 2)); // гаусс, пик на 0.55
+      morphCutFlash.style.opacity = (fp * 0.72).toFixed(3);
+    }
+    if (morphCutLabel){
+      // Заголовок «Забота» проявляется первым (0.64→0.80)
+      const lp = easeOutExpo(clamp((tail - 0.64) / 0.16, 0, 1));
+      morphCutLabel.style.opacity = lp.toFixed(3);
+      morphCutLabel.style.transform = `translateY(${((1 - lp) * 16).toFixed(1)}px)`;
+    }
+    // Подзаголовок — вторая волна (0.78→0.90)
+    if (morphCutSub){
+      const sp = easeOutExpo(clamp((tail - 0.78) / 0.12, 0, 1));
+      morphCutSub.style.opacity = sp.toFixed(3);
+      morphCutSub.style.transform = `translateY(${((1 - sp) * 14).toFixed(1)}px)`;
+    }
+    // Уведомления прилетают по очереди в самом конце перехода
+    if (cutNotifs.length){
+      cutNotifs.forEach((n, i) => {
+        const start = 0.84 + i * 0.06;
+        n.classList.toggle('is-on', tail >= start);
+      });
+    }
+    if (vidP > 0.02 && !cutPlaying){
+      const pr = morphCutVideo.play(); if (pr) pr.catch(()=>{});
+      cutPlaying = true;
+    } else if (vidP <= 0.02 && cutPlaying){
+      morphCutVideo.pause(); cutPlaying = false;
+    }
+  }
+
+  // Скролл-обработчик через rAF, чтобы не мешать основному циклу
+  let morphScheduled = false;
+  function onScrollMorph(){
+    if (morphScheduled) return;
+    morphScheduled = true;
+    requestAnimationFrame(() => {
+      morphScheduled = false;
+      const p = computeMorphProgress();
+      applyMorph(p);
+    });
+  }
+  window.addEventListener('scroll', onScrollMorph, { passive: true });
+  window.addEventListener('resize', onScrollMorph);
+  // Инициализация при загрузке
+  onScrollMorph();
+
+  /* ====== 9. БЛОК 2: живые SVG-диаграммы карточек-фактов ====== */
+
+  // Кольцо-таймер (карточка «Уборка кухни») — точки по кругу, дышат
+  (function buildKitchenRing(){
+    const g = document.getElementById('b2KitchenDots');
+    if (!g) return;
+    const cx = 100, cy = 100, dots = 60, rOut = 84, rIn = 66;
+    for (let i = 0; i < dots; i++){
+      const a = (i / dots) * Math.PI * 2 - Math.PI / 2;
+      const c1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c1.setAttribute('cx', (cx + Math.cos(a) * rOut).toFixed(2));
+      c1.setAttribute('cy', (cy + Math.sin(a) * rOut).toFixed(2));
+      c1.setAttribute('r', '1.4');
+      c1.style.animationDelay = ((i / dots) * 3).toFixed(2) + 's';
+      g.appendChild(c1);
+      if (i % 2 === 0){
+        const c2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        c2.setAttribute('cx', (cx + Math.cos(a) * rIn).toFixed(2));
+        c2.setAttribute('cy', (cy + Math.sin(a) * rIn).toFixed(2));
+        c2.setAttribute('r', '1');
+        c2.style.animationDelay = ((i / dots) * 3 + 1).toFixed(2) + 's';
+        g.appendChild(c2);
+      }
+    }
+  })();
+
+  // Шкалы-бары (карточка «Ваше время ×5»): короткая Roxy vs длинная человек
+  (function buildMultBars(){
+    const wrap = document.getElementById('b2MultBars');
+    if (!wrap) return;
+    wrap.innerHTML =
+      '<div class="b2bar"><div class="b2bar__fill is-roxy" style="width:0"></div><div class="b2bar__lbl">Roxy · 1ч</div></div>' +
+      '<div class="b2bar"><div class="b2bar__fill is-vac" style="width:0"></div><div class="b2bar__lbl is-dark">Человек · 4ч</div></div>';
+  })();
+
+  // Вариант C: 21 деление недели (7×3), плавное «зажигание» слева направо
+  (function buildWeek(){
+    const wrap = document.getElementById('b2Week');
+    if (!wrap) return;
+    let html = '';
+    for (let i = 0; i < 21; i++) html += '<span></span>';
+    wrap.innerHTML = html;
+  })();
+
+  // Переключатель вариантов карточки «Ваше время» (A/B/C)
+  (function b2VariantSwitch(){
+    const card = document.querySelector('.b2card--mult');
+    if (!card) return;
+    const btns = card.querySelectorAll('.b2sw');
+    const vars = card.querySelectorAll('.b2var');
+    let weekLit = false;
+    function litWeek(){
+      if (weekLit) return; weekLit = true;
+      card.querySelectorAll('#b2Week span').forEach((s, i) =>
+        setTimeout(() => s.classList.add('on'), 40 * i));
+    }
+    btns.forEach(btn => btn.addEventListener('click', () => {
+      const v = btn.dataset.var;
+      card.dataset.variant = v;
+      btns.forEach(b => { const on = b === btn; b.classList.toggle('is-on', on); b.setAttribute('aria-selected', on); });
+      vars.forEach(el => el.classList.toggle('is-on', el.dataset.var === v));
+      if (v === 'c') litWeek();
+    }));
+  })();
+
+  // Осциллограф (карточка «Реакция 0,3 с»): волна слева направо
+  // ВАЖНО: объявления ДО IIFE — иначе TDZ-краш валит весь скрипт ниже.
+  let wavePath = null;
+  let waveLen = 0;
+  // строим d-атрибут волны с фазой ph (для живого колыхания)
+  function b2WaveD(ph){
+    const W = 240, H = 70, mid = H / 2, pts = [];
+    for (let x = 0; x <= W; x += 4){
+      const t = x / W;
+      // почти плоско, затем резкий пик реакции в середине, затем спад
+      const spike = Math.exp(-Math.pow((t - 0.5) * 7, 2)) * 26;
+      // мягкое колыхание: бегущая синусоида, затухающая к краям
+      const sway = Math.sin(t * 12 + ph) * (1 - Math.abs(t - 0.5) * 1.4) * 3.2;
+      pts.push(`${x},${(mid - spike + sway).toFixed(1)}`);
+    }
+    return 'M' + pts.join(' L');
+  }
+  (function buildWave(){
+    const path = document.getElementById('b2WavePath');
+    if (!path) return;
+    path.setAttribute('d', b2WaveD(0));
+    const len = path.getTotalLength ? path.getTotalLength() : 300;
+    path.style.strokeDasharray = len;
+    path.style.strokeDashoffset = len;
+    path.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1)';
+    wavePath = path; waveLen = len;
+  })();
+  // Живое колыхание кривой — запускается после проявления линии
+  let waveAnimOn = false;
+  function startWaveMotion(){
+    if (waveAnimOn || reduced || !wavePath) return;
+    waveAnimOn = true;
+    let ph = 0;
+    (function loop(){
+      ph += 0.018;
+      wavePath.setAttribute('d', b2WaveD(ph));
+      requestAnimationFrame(loop);
+    })();
+  }
+
+  // Счётчики чисел карточек (запускаются один раз, когда карточки видны)
+  function b2Count(el, dur){
+    const to = +el.dataset.countTo;
+    const pre = el.dataset.prefix || '';
+    const suf = el.dataset.suffix || '';
+    if (reduced){ el.textContent = pre + to + suf; return; }
+    const start = performance.now();
+    (function tick(now){
+      const t = Math.min(1, (now - start) / dur);
+      el.textContent = pre + Math.round(to * (1 - Math.pow(1 - t, 3))) + suf;
+      if (t < 1) requestAnimationFrame(tick);
+    })(performance.now());
+  }
+
+  // Запуск всех живых диаграмм блока 2 (вызывается из applyMorph один раз)
+  window.startB2Diagrams = function(){
+    // счётчики
+    document.querySelectorAll('.b2card .b2num[data-count-to]').forEach((el, i) => {
+      setTimeout(() => b2Count(el, 1100 + i * 150), 200 + i * 180);
+    });
+    // шкалы множителя
+    const fills = document.querySelectorAll('#b2MultBars .b2bar__fill');
+    if (fills[0]) setTimeout(() => { fills[0].style.width = '25%'; }, 300);   // Roxy 1ч
+    if (fills[1]) setTimeout(() => { fills[1].style.width = '100%'; }, 450);  // Человек 4ч
+    // осциллограф: проявляем линию, затем включаем живое колыхание
+    if (wavePath){
+      setTimeout(() => { wavePath.style.strokeDashoffset = '0'; }, 400);
+      setTimeout(startWaveMotion, 1700);
+    }
+  };
+
+  /* ═══════════ 10. ВИДЕОБЛОКИ: автоплей + reveal при входе в экран ═══════════
+     IntersectionObserver: когда блок попадает в кадр — играем видео,
+     запускаем reveal текста; когда уходит — паузим (экономия). */
+  const vidSections = document.querySelectorAll('.vid');
+  const vidObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const sec = entry.target;
+      const media = sec.querySelector('.vid__media');
+      if (entry.isIntersecting){
+        sec.classList.add('is-inview');
+        // ленивая загрузка + автоплей
+        if (media && media.preload === 'none'){ media.preload = 'auto'; media.load(); }
+        if (media){ const pr = media.play(); if (pr) pr.catch(()=>{}); }
+        // чек-лист блока 4 — галочки по таймингу действий робота на видео
+        // iOS-уведомления прилетают по очереди, как баннеры на iPhone
+        if (!sec.dataset.notifRan){
+          sec.dataset.notifRan = '1';
+          sec.querySelectorAll('[data-notif]').forEach((n, i) => {
+            setTimeout(() => n.classList.add('is-on'), (reduced ? 0 : 1100 + i * 1500));
+          });
+        }
+      } else {
+        if (media){ media.pause(); }
+      }
+    });
+  }, { threshold: 0.35 });
+  vidSections.forEach(s => vidObserver.observe(s));
+
+  /* ═══════════ 11. НОВЫЕ СЕКЦИИ v5 ═══════════
+     Реверансы референсам (string-tune / hildenkaira / Apple):
+     всё движение — через rAF + lerp, никаких резких срабатываний. */
+
+  // --- 11.1 Reveal по скроллу: [data-sr] + зоны [data-sr-zone] ---
+  const srObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('is-sr');
+      srObserver.unobserve(e.target);
+      // счётчики внутри показанного элемента
+      e.target.querySelectorAll('[data-scount]').forEach((el, i) => {
+        if (el.dataset.scDone) return;
+        el.dataset.scDone = '1';
+        setTimeout(() => srCount(el, 1300), 250 + i * 200);
+      });
+    });
+  }, { threshold: 0.25 });
+  document.querySelectorAll('[data-sr]').forEach(el => srObserver.observe(el));
+
+  const zoneObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting){
+        e.target.classList.add('is-sr-zone');
+        zoneObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  document.querySelectorAll('[data-sr-zone], [data-parallax-zone]').forEach(el => zoneObserver.observe(el));
+
+  function srCount(el, dur){
+    const to = +el.dataset.scount;
+    if (reduced){ el.textContent = to; return; }
+    const start = performance.now();
+    (function tick(now){
+      const p = Math.min(1, (now - start) / dur);
+      el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(tick);
+    })(performance.now());
+  }
+
+  // --- 11.2 Бары тишины (36 дБ) — тихий «шёпот»-эквалайзер ---
+  (function buildCalmBars(){
+    const wrap = document.getElementById('calmBars');
+    if (!wrap) return;
+    const heights = [30,52,38,66,44,58,34,72,48,40,62,36];
+    heights.forEach((h, i) => {
+      const b = document.createElement('i');
+      b.style.setProperty('--bh', h);
+      b.style.setProperty('--bd', (i * 0.22).toFixed(2) + 's');
+      wrap.appendChild(b);
+    });
+  })();
+
+  // --- 11.3 Кольцо-таймер «Уборка кухни · 22 мин» (из блока 2, вернули) ---
+  (function buildBentoRing(){
+    const g = document.getElementById('bentoRingDots');
+    if (!g) return;
+    const cx = 100, cy = 100, dots = 60, rOut = 88, rIn = 70;
+    for (let i = 0; i < dots; i++){
+      const a = (i / dots) * Math.PI * 2 - Math.PI / 2;
+      const c1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c1.setAttribute('cx', (cx + Math.cos(a) * rOut).toFixed(2));
+      c1.setAttribute('cy', (cy + Math.sin(a) * rOut).toFixed(2));
+      c1.setAttribute('r', '1.5');
+      c1.style.animationDelay = ((i / dots) * 3).toFixed(2) + 's';
+      g.appendChild(c1);
+      if (i % 2 === 0){
+        const c2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        c2.setAttribute('cx', (cx + Math.cos(a) * rIn).toFixed(2));
+        c2.setAttribute('cy', (cy + Math.sin(a) * rIn).toFixed(2));
+        c2.setAttribute('r', '1');
+        c2.style.animationDelay = ((i / dots) * 3 + 1).toFixed(2) + 's';
+        g.appendChild(c2);
+      }
+    }
+  })();
+
+  // --- 11.4 Живой тумблер в «Сценариях» — изредка щёлкает сам ---
+  (function liveToggle(){
+    const t = document.getElementById('tglLive');
+    if (!t || reduced) return;
+    setInterval(() => t.classList.toggle('is-on'), 3800);
+  })();
+
+  // --- 11.4b ИНЖЕНЕРИЯ: sticky-морф «голова → целый робот» ---
+  // Переиспользуем кадры frames-morph (morphCache) из hero: по скроллу
+  // секции камера «отъезжает» от головы до полного роста, и вокруг
+  // робота по одному включаются характеристики.
+  (function specMorph(){
+    const pin = document.getElementById('specPin');
+    const canvas2 = document.getElementById('specCanvas');
+    if (!pin || !canvas2) return;
+    const stats = Array.from(pin.querySelectorAll('.spec__stat'));
+    const fallback = pin.querySelector('.spec__fallback');
+
+    function liveStat(st){
+      if (st.classList.contains('is-live')) return;
+      st.classList.add('is-live');
+      st.querySelectorAll('[data-scount]').forEach(el => {
+        if (el.dataset.scDone) return;
+        el.dataset.scDone = '1';
+        srCount(el, 900);
+      });
+    }
+    function showFallback(){
+      canvas2.style.display = 'none';
+      if (fallback) fallback.style.display = 'block';
+      stats.forEach(liveStat);
+    }
+    if (reduced){ showFallback(); return; }
+
+    const sctx = canvas2.getContext('2d', { alpha: false });
+    function fit2(){
+      const r = canvas2.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas2.width = Math.max(1, Math.floor(r.width * dpr));
+      canvas2.height = Math.max(1, Math.floor(r.height * dpr));
+      sctx.imageSmoothingEnabled = true;
+      sctx.imageSmoothingQuality = 'high';
+    }
+    fit2();
+    window.addEventListener('resize', fit2);
+
+    const headC = pin.querySelector('.spec__head-c');
+    let lastIdx2 = -1;
+    function draw2(idx){
+      const img = morphCache.get(idx);
+      if (!img || !img.naturalWidth) return false;
+      const cw = canvas2.width, ch = canvas2.height;
+      const s = ch / img.naturalHeight;          // contain по высоте
+      const dw = img.naturalWidth * s;
+      sctx.fillStyle = '#ffffff';
+      sctx.fillRect(0, 0, cw, ch);
+      sctx.drawImage(img, (cw - dw) / 2, 0, dw, ch);
+      return true;
+    }
+    function specTick(){
+      const r = pin.getBoundingClientRect();
+      // рисуем только когда секция рядом с экраном
+      if (r.bottom > -200 && r.top < window.innerHeight + 200){
+        const total = Math.max(1, r.height - window.innerHeight);
+        const p = clamp(-r.top / total, 0, 1);
+        const idx = 1 + Math.round(p * (MORPH_COUNT - 1));
+        if (idx !== lastIdx2 && draw2(idx)) lastIdx2 = idx;
+        stats.forEach((st, i) => { if (p > 0.16 + i * 0.13) liveStat(st); });
+        // заголовок растворяется, когда робот вырастает во весь экран —
+        // иначе голова наезжает на текст
+        if (headC){
+          const hop = 1 - clamp((p - 0.42) / 0.18, 0, 1);
+          headC.style.opacity = hop.toFixed(3);
+          headC.style.transform = `translateX(-50%) translateY(${(-24 * (1 - hop)).toFixed(1)}px)`;
+        }
+      }
+      requestAnimationFrame(specTick);
+    }
+    requestAnimationFrame(specTick);
+    // если кадры морфа не загрузились (медленная сеть) — фото вместо canvas
+    setTimeout(() => { if (!morphCache.get(1)) showFallback(); }, 5000);
+  })();
+
+  // --- 11.5 Lerp-параллакс изображений секций ---
+  // [data-parallax]      — фон «Тишины», глубокий ход (до ±7% высоты)
+  // [data-parallax-soft] — фигуры (робот, портрет), мягкий ход (до ±22px)
+  const pxItems = [];
+  document.querySelectorAll('[data-parallax]').forEach(el => pxItems.push({ el, depth: 0.07, unit: 'frac', cur: 0 }));
+  document.querySelectorAll('[data-parallax-soft]').forEach(el => pxItems.push({ el, depth: 22, unit: 'px', cur: 0 }));
+  function parallaxLoop(){
+    if (!reduced){
+      const vh = window.innerHeight;
+      pxItems.forEach(it => {
+        const r = it.el.getBoundingClientRect();
+        // -1..1: положение центра элемента относительно центра окна
+        const k = ((r.top + r.height / 2) - vh / 2) / (vh / 2 + r.height / 2);
+        const target = it.unit === 'frac' ? -k * it.depth * r.height : -k * it.depth;
+        it.cur += (target - it.cur) * 0.085;   // инерция
+        it.el.style.transform = `translate3d(0, ${it.cur.toFixed(2)}px, 0)`;
+      });
+    }
+    requestAnimationFrame(parallaxLoop);
+  }
+  requestAnimationFrame(parallaxLoop);
+
+  // --- 11.6 Магнитная кнопка предзаказа (Apple-style, с lerp-возвратом) ---
+  document.querySelectorAll('[data-magnetic]').forEach(btn => {
+    if (reduced) return;
+    let tx = 0, ty = 0, cx2 = 0, cy2 = 0, raf = null;
+    function loop(){
+      cx2 += (tx - cx2) * 0.16;
+      cy2 += (ty - cy2) * 0.16;
+      btn.style.transform = `translate(${cx2.toFixed(2)}px, ${cy2.toFixed(2)}px)`;
+      if (Math.abs(tx - cx2) > .1 || Math.abs(ty - cy2) > .1 || tx || ty){
+        raf = requestAnimationFrame(loop);
+      } else { btn.style.transform = ''; raf = null; }
+    }
+    btn.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      tx = (e.clientX - r.left - r.width / 2) * 0.28;
+      ty = (e.clientY - r.top - r.height / 2) * 0.34;
+      if (!raf) raf = requestAnimationFrame(loop);
+    });
+    btn.addEventListener('mouseleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(loop); });
+  });
+
+  /* ═══════════ 12. FAQ — диалог с Roxy ═══════════ */
+  // Аккордеон-чат: открытие → «Roxy печатает…» → ответ.
+  // Открыт только один вопрос за раз (как в переписке — одна мысль за раз).
+  document.querySelectorAll('.qa').forEach(qa => {
+    const btn = qa.querySelector('.qa__q');
+    const typing = qa.querySelector('.qa__typing');
+    const text = qa.querySelector('.qa__text');
+    let typeTimer = null;
+    btn.addEventListener('click', () => {
+      const wasOpen = qa.classList.contains('is-open');
+      // закрыть остальные
+      document.querySelectorAll('.qa.is-open').forEach(o => {
+        o.classList.remove('is-open');
+        o.querySelector('.qa__q').setAttribute('aria-expanded', 'false');
+      });
+      if (wasOpen) return;
+      qa.classList.add('is-open');
+      btn.setAttribute('aria-expanded', 'true');
+      // сценка «печатает»: точки → текст (при reduced — сразу текст)
+      clearTimeout(typeTimer);
+      if (reduced){
+        typing.style.display = 'none';
+        text.classList.add('is-shown');
+        return;
+      }
+      typing.style.display = 'inline-flex';
+      text.classList.remove('is-shown');
+      typeTimer = setTimeout(() => {
+        typing.style.display = 'none';
+        text.classList.add('is-shown');
+      }, 850);
+    });
+  });
+
+  /* ═══════════ 13. КОНТАКТЫ — карта офисов ═══════════ */
+  // Сетка-пунктир (меридианы/параллели точками), маршрут между офисами,
+  // пульсирующие пины. Часы живые — по таймзонам. Статусы Roxy меняются.
+  (function buildMap(){
+    const grid = document.getElementById('cmapGrid');
+    const pins = document.getElementById('cmapPins');
+    const route = document.getElementById('cmapRoute');
+    if (!grid || !pins) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 1200, H = 420;
+    // точечная сетка
+    for (let x = 40; x <= W - 40; x += 36){
+      for (let y = 36; y <= H - 36; y += 36){
+        const c = document.createElementNS(NS,'circle');
+        c.setAttribute('cx', x); c.setAttribute('cy', y);
+        c.setAttribute('r', '1.1');
+        c.setAttribute('class', 'cmap-grid');
+        // лёгкая волна прозрачности по диагонали
+        c.style.opacity = (0.35 + 0.65 * Math.abs(Math.sin((x + y) * 0.01))).toFixed(2);
+        grid.appendChild(c);
+      }
+    }
+    // офисы: примерная проекция (долгота 0..160 → x, широта 75..20 → y)
+    const cities = [
+      { key: 'helsinki', name: 'Хельсинки', lon: 24.9, lat: 60.2, tz: 'Europe/Helsinki' },
+      { key: 'moscow',   name: 'Москва',    lon: 37.6, lat: 55.8, tz: 'Europe/Moscow' },
+      { key: 'tokyo',    name: 'Токио',     lon: 139.7, lat: 35.7, tz: 'Asia/Tokyo' }
+    ];
+    const px = c => 60 + (c.lon / 160) * (W - 160);
+    const py = c => 50 + ((75 - c.lat) / 55) * (H - 130);
+    // маршрут — мягкие дуги между городами
+    const [h, m, t] = cities;
+    route.setAttribute('d',
+      `M ${px(h)} ${py(h)} Q ${(px(h)+px(m))/2} ${Math.min(py(h),py(m)) - 30} ${px(m)} ${py(m)} ` +
+      `Q ${(px(m)+px(t))/2} ${Math.min(py(m),py(t)) - 80} ${px(t)} ${py(t)}`);
+    // пины
+    cities.forEach(c => {
+      const g = document.createElementNS(NS,'g');
+      g.setAttribute('class', 'cmap-pin');
+      g.dataset.city = c.key;
+      const halo = document.createElementNS(NS,'circle');
+      halo.setAttribute('class','halo');
+      halo.setAttribute('cx', px(c)); halo.setAttribute('cy', py(c)); halo.setAttribute('r', 14);
+      const core = document.createElementNS(NS,'circle');
+      core.setAttribute('class','core');
+      core.setAttribute('cx', px(c)); core.setAttribute('cy', py(c)); core.setAttribute('r', 6);
+      // Хельсинки подписываем СЛЕВА от пина — иначе тексты налезают на Москву
+      const flip = c.key === 'helsinki';
+      const lx = flip ? px(c) - 18 : px(c) + 18;
+      const label = document.createElementNS(NS,'text');
+      label.setAttribute('x', lx); label.setAttribute('y', py(c) - 6);
+      if (flip) label.setAttribute('text-anchor', 'end');
+      label.textContent = c.name;
+      const tzText = document.createElementNS(NS,'text');
+      tzText.setAttribute('class','tz');
+      tzText.setAttribute('x', lx); tzText.setAttribute('y', py(c) + 14);
+      if (flip) tzText.setAttribute('text-anchor', 'end');
+      tzText.dataset.tzLive = c.tz;
+      tzText.textContent = '—:—';
+      g.append(halo, core, label, tzText);
+      pins.appendChild(g);
+      // взаимная подсветка пин ↔ карточка офиса
+      const card = document.querySelector(`.office[data-office="${c.key}"]`);
+      if (card){
+        card.addEventListener('mouseenter', () => g.classList.add('is-hot'));
+        card.addEventListener('mouseleave', () => g.classList.remove('is-hot'));
+        g.addEventListener('mouseenter', () => { g.classList.add('is-hot'); card.style.borderColor = 'rgba(94,194,214,.35)'; });
+        g.addEventListener('mouseleave', () => { g.classList.remove('is-hot'); card.style.borderColor = ''; });
+      }
+    });
+  })();
+
+  // Живые часы всех офисов (и на карте, и в карточках)
+  function tickClocks(){
+    document.querySelectorAll('[data-tz], [data-tz-live]').forEach(el => {
+      const tz = el.dataset.tz || el.dataset.tzLive;
+      try{
+        el.textContent = new Intl.DateTimeFormat('ru-RU', {
+          hour: '2-digit', minute: '2-digit', timeZone: tz
+        }).format(new Date());
+      }catch(e){ /* старый браузер — оставим прочерк */ }
+    });
+  }
+  tickClocks();
+  setInterval(tickClocks, 15000);
+
+  // Статусы Roxy в офисах — ротация с мягким фейдом
+  const officeStatuses = {
+    helsinki: [
+      'Roxy сейчас: учится гладить лён',
+      'Roxy сейчас: тестирует новое кимоно',
+      'Roxy сейчас: смотрит на снег. Просто нравится'
+    ],
+    moscow: [
+      'Roxy сейчас: встречает гостей шоурума',
+      'Roxy сейчас: варит кофе инженерам — 36 дБ',
+      'Roxy сейчас: репетирует поклон для демо'
+    ],
+    tokyo: [
+      'Roxy сейчас: заваривает матчу инженерам',
+      'Roxy сейчас: тренирует кисти на оригами',
+      'Roxy сейчас: складывает журавлика №1000'
+    ]
+  };
+  if (!reduced){
+    Object.keys(officeStatuses).forEach((key, k) => {
+      const msgEl = document.querySelector(`.office[data-office="${key}"] .msg`);
+      if (!msgEl) return;
+      let i = 0;
+      setInterval(() => {
+        msgEl.classList.add('is-swap');
+        setTimeout(() => {
+          i = (i + 1) % officeStatuses[key].length;
+          msgEl.textContent = officeStatuses[key][i];
+          msgEl.classList.remove('is-swap');
+        }, 450);
+      }, 4600 + k * 900); // офисы «живут» в разном ритме
+    });
+  }
+
+  /* ══════════ 05 · BENTO: мини-пульт «Roxy сейчас» — комнаты по кругу ══════════ */
+  (function bentoPilot(){
+    const wrap = document.getElementById('bentoRooms');
+    if (!wrap || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const rooms = [...wrap.children];
+    const st = document.querySelector('.bento__pilot-top .st');
+    const names = ['на кухне', 'в спальне', 'в гостиной'];
+    let i = 0;
+    setInterval(() => {
+      rooms[i].classList.remove('is-on');
+      i = (i + 1) % rooms.length;
+      rooms[i].classList.add('is-on');
+      if (st) st.textContent = names[i];
+    }, 2600);
+  })();
+
+  /* ══════════ 05 · BENTO app: переключение вкладок Сценарии / Отчёты ══════════ */
+  (function bappTabs(){
+    const app = document.querySelector('.bapp');
+    if (!app) return;
+    const tabs = [...app.querySelectorAll('.bapp__tab')];
+    const panels = [...app.querySelectorAll('.bapp__panel')];
+    let auto = null;
+    function select(name){
+      tabs.forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+      panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === name));
+    }
+    tabs.forEach(t => t.addEventListener('click', () => { if (auto){ clearInterval(auto); auto = null; } select(t.dataset.tab); }));
+    // авто-демонстрация: Сценарии → Отчёты по кругу, пока не тронули
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      let on = false;
+      auto = setInterval(() => { on = !on; select(on ? 'report' : 'scen'); }, 3400);
+    }
+  })();
+
+  /* ══════════ 07 · ОТЗЫВЫ: фокус-карточка меняется по списку ══════════ */
+  (function voicesInteract(){
+    const list = document.getElementById('vlist');
+    if (!list) return;
+    const q = document.getElementById('vfocusQ');
+    const name = document.getElementById('vfocusName');
+    const role = document.getElementById('vfocusRole');
+    const ava = document.getElementById('vfocusAva');
+    const days = document.getElementById('vfocusDays');
+    const items = [...list.querySelectorAll('[data-voice]')];
+    let current = 0, timer = null;
+
+    function show(idx){
+      if (idx === current) return;
+      const it = items[idx];
+      items[current].classList.remove('is-active');
+      it.classList.add('is-active');
+      current = idx;
+      // кроссфейд текста фокус-карточки
+      q.style.opacity = '0'; q.style.transform = 'translateY(8px)';
+      setTimeout(() => {
+        q.textContent = it.dataset.q;
+        name.textContent = it.dataset.name;
+        role.textContent = it.dataset.role;
+        ava.textContent = it.dataset.ava;
+        days.textContent = it.dataset.days;
+        q.style.opacity = '1'; q.style.transform = 'none';
+      }, 260);
+    }
+    function auto(){ timer = setInterval(() => show((current + 1) % items.length), 5200); }
+    function stopAuto(){ if (timer){ clearInterval(timer); timer = null; } }
+
+    items.forEach((it, i) => {
+      it.addEventListener('mouseenter', () => { stopAuto(); show(i); });
+      it.addEventListener('click', () => { stopAuto(); show(i); });
+    });
+    // авто-ротация, пока пользователь не взаимодействует
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) auto();
+    list.addEventListener('mouseleave', () => { if (!timer) auto(); });
+  })();
+
+})();
+</script>
+</body>
+</html>
