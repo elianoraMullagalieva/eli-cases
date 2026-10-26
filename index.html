@@ -17,9 +17,11 @@
     --ease:cubic-bezier(.22,1,.36,1);
   }
   *{margin:0;padding:0;box-sizing:border-box}
+  html{overflow-x:hidden;overflow-x:clip;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  html,body{touch-action:manipulation}
   body{
     font-family:'Inter',sans-serif;background:var(--white);color:var(--black);
-    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;overflow-x:clip;
   }
   ::selection{background:var(--lime);color:var(--black)}
   .mono{font-family:'JetBrains Mono',monospace}
@@ -45,7 +47,7 @@
   @media (max-width:900px){.nav{padding:20px 20px}}
 
   /* ================= HERO (вариант E) ================= */
-  .hero{position:relative;min-height:100vh;background:var(--white);overflow:hidden}
+  .hero{position:relative;min-height:100vh;min-height:100svh;background:var(--white);overflow:hidden}
   .head{
     position:absolute;left:0;right:0;top:7.7vh;height:84.6vh;pointer-events:none;
     display:flex;justify-content:center;
@@ -100,7 +102,7 @@
 
   /* ================= ТОЧКА-ПЕРЕХОД ================= */
   .wipe{height:260vh;background:var(--white)}
-  .wipe__stage{position:sticky;top:0;height:100vh;overflow:hidden}
+  .wipe__stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
   .wipe__dot{
     position:absolute;left:50%;top:50%;margin:-14vmax 0 0 -14vmax;
     width:28vmax;height:28vmax;border-radius:50%;background:var(--lime);
@@ -189,8 +191,18 @@
     font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.4);
   }
   @media (max-width:900px){
-    .scard{width:220px;height:124px}
+    .scard{width:min(220px,52vw);height:auto;aspect-ratio:16/9}
     .spin__orbit{height:44vh;min-height:320px}
+    .spin__cta,.spin__head p{padding:0 20px;letter-spacing:.1em;line-height:1.7}
+  }
+  /* HUD лаймового блока на телефоне: поля 20px, нижние подписи друг над другом */
+  @media (max-width:900px){
+    .wipe__hud{font-size:9px;letter-spacing:.16em}
+    .wipe__hud.tl,.wipe__hud.bl{left:20px}
+    .wipe__hud.tr{right:20px}
+    .wipe__hud.bl{bottom:calc(6vh + 22px)}
+    .wipe__hud.br{left:20px;right:auto;text-align:left}
+    .wipe__hud.br .cro{display:none}
   }
 
   /* ================= КОНВЕЙЕР (светлый, живая инфографика) ================= */
@@ -311,7 +323,18 @@
   .footer .links{display:flex;gap:22px}
   .footer a{text-decoration:none;transition:color .4s}
   .footer a:hover{color:var(--lime)}
-  @media (max-width:900px){.form{grid-template-columns:1fr}.footer{padding:22px 20px 40px}}
+    .form input{min-width:0;width:100%}
+  @media (max-width:900px){
+    .form{grid-template-columns:1fr;gap:20px}
+    .footer{padding:22px 20px 40px}
+    .trade{padding-top:calc(5vh + 130px)}
+    .trade__inner{padding:0 20px}
+    .trade .sub{padding:0}
+    /* HUD-подписи: под навигацией, друг над другом */
+    .trade::before,.trade::after{left:20px;right:auto;top:auto;font-size:9px;letter-spacing:.16em}
+    .trade::before{top:calc(5vh + 64px)}
+    .trade::after{top:calc(5vh + 84px)}
+  }
 
   .rv2{opacity:0;transform:translateY(26px);transition:opacity 1.1s var(--ease),transform 1.1s var(--ease)}
   .rv2.on{opacity:1;transform:none}
@@ -514,6 +537,21 @@
   const hasGsap = typeof gsap !== 'undefined';
   if (hasGsap) gsap.registerPlugin(ScrollTrigger);
 
+  /* iOS / Safari не умеют прозрачность в WebM — берём mp4 с белым фоном и multiply */
+  const isWebKitOnly = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+    (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Android/.test(navigator.userAgent));
+  if (isWebKitOnly){
+    const hv = document.querySelector('#wipeHead video');
+    if (hv){ hv.src = 'deploy/media/head.mp4'; hv.style.mixBlendMode = 'multiply'; hv.load(); hv.play && hv.play().catch(()=>{}); }
+  }
+
+  /* на тач-экранах «наведите» не работает — меняем подсказку */
+  if (matchMedia('(hover: none)').matches){
+    const cta = document.querySelector('.spin__cta');
+    if (cta) cta.textContent = 'нажмите на карточку — она остановится';
+  }
+
   /* часы */
   function tick(){
     const d = new Date(Date.now() + (8 * 60 + new Date().getTimezoneOffset()) * 60000);
@@ -689,6 +727,7 @@
   orbit.addEventListener('mouseenter', () => targetSpeed = .0011);
   orbit.addEventListener('mouseleave', () => { targetSpeed = .0032; held = null; });
   cards.forEach(c => c.addEventListener('click', () => { held = held === c ? null : c; }));
+  orbit.addEventListener('touchend', () => { if (held === null) targetSpeed = .0032; }, {passive:true});
   addEventListener('resize', layout);
 
   /* ---------- конвейер: reveal + счётчики + рисование диаграмм ---------- */
@@ -758,9 +797,13 @@
 
   /* nav на тёмной секции */
   const navEl = document.getElementById('nav');
+  const darkSecs = ['spin','trade'].map(id => document.getElementById(id));
   function navCheck(){
-    const r = document.getElementById('spin').getBoundingClientRect();
-    navEl.classList.toggle('on-dark', r.top <= 60 && r.bottom >= 60);
+    const dark = darkSecs.some(sec => {
+      const r = sec.getBoundingClientRect();
+      return r.top <= 60 && r.bottom >= 60;
+    });
+    navEl.classList.toggle('on-dark', dark);
   }
   addEventListener('scroll', navCheck, {passive:true});
   navCheck();
